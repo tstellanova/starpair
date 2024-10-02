@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "starpair"
+version = "0.1.0"
+description = ""
+authors = ["Todd Stellanova <tstellanova@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+astroquery = "^0.4.7"
+astropy = "^6.1.4"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
