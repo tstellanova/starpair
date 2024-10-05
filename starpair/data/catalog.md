@@ -1,8 +1,3 @@
-
-
-
-
-
 ## From `download_oneshot.py`:
 
 ### Limit 2e8 r45 d100
@@ -25,7 +20,6 @@ antigalactic query >>> elapsed: 2031.90 seconds
 - 240634 nearby galactic line stars written to:
 `galactic_L2e+09_r45_d100_0_0.fits.gz`
 galactic query >>> elapsed: 3689.79 seconds
-
 
 ### Limit 2e9 outer cone ro60 ri45
 - 72071 nearby stars  written to:
@@ -54,24 +48,32 @@ antigalactic query >>> elapsed: 1817.21 seconds
 
 DESIGNATION,ref_epoch,ra,dec,parallax,l,b,pm,pmra,pmdec,phot_g_mean_mag, ABS(1000./parallax) AS dist_pc, DISTANCE(180.00, 0.00, l, b) AS ang_sep
 
-### Limit 2.0e+09 antigalactic ri45 ro60
+### Limit 2e9 antigalactic ri45 ro60
 34929 nearby stars  written to:
 `antigalactic_outercone_L2e+09_ri45_ro60_d100_18000_0.fits.gz`
 galactic outercone query >>> elapsed: 3756.50 seconds
 
-### Limit 2.0e+09 antigalactic ri60 ro90
+### Limit 2e9 antigalactic ri60 ro90
 80848 nearby stars  written to:
 `antigalactic_outercone_L2e+09_ri60_ro90_d100_18000_0.fits.gz`
 galactic outercone query >>> elapsed: 3236.75 seconds
 
-### Limit 2.0e+09 galactic ri45 ro60
+### Limit 2e9 galactic ri45 ro60
 72071 nearby stars  written to:
 `galactic_outercone_L2e+09_ri45_ro60_d100_0_0.fits.gz`
 galactic outercone query >>> elapsed: 1829.84 seconds
 
-### Limit 2.0e+09 galactic ri60 ro90
-
+### Limit 2e9 galactic ri60 ro90
 97095 nearby stars  written to:
 `galactic_outercone_L2e+09_ri60_ro90_d100_0_0.fits.gz`
 galactic outercone query >>> elapsed: 1847.82 seconds
 
+### Limit 2e9 galactic r90 d100 
+409800 nearby stars written to:
+`galactic_L2e+09_r90_d100_0_0.fits.gz`
+galactic query >>> elapsed: 3595.14 seconds
+
+### Limit 2e9 antigalactic r90 d100
+164731 nearby stars written to:
+`antigalactic_L2e+09_r90_d100_18000_0.fits.gz`
+antigalactic query >>> elapsed: 6189.96 seconds
