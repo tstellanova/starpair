@@ -126,7 +126,8 @@ def find_close_pairs(stars: Table, max_angle_deg: Angle = Angle('0.25d'), max_ra
 def main():
     parser = argparse.ArgumentParser(description='Process stars in FITS file')
     parser.add_argument('src_path', nargs='?',
-                        default="./data/galactic_L2e+09_r45_d100_0_0.fits.gz",
+                        default="./data/galactic_L2e+09_r90_d100_0_0.fits.gz",
+                        # default="./data/galactic_L2e+09_r45_d100_0_0.fits.gz",
                         # default="./data/antigalactic_L10k_r10_d306_merged.fits.gz",
                         # default="./data/anti_galactic_line_2_deg.fits.gz",
                         help="Source data file with `.fits` or `.fits.gz` extension",
@@ -158,7 +159,7 @@ def main():
     print(f"Sorting all pairs... {len(close_pairs)}")
     close_pairs.sort(key=lambda tup: tup[0])
     print(f"Writing {len(close_pairs)} close pairs")
-    with open(f"./data/galactic_L2e+09_r45_d100_0_0_a{max_glancing_angle_int}_pairs.csv", 'w') as f:
+    with open(f"./data/galactic_L2e+09_r90_d100_0_0_a{max_glancing_angle_int}_pairs.csv", 'w') as f:
         writer = csv.writer(f)
         writer.writerow(field_names)
         writer.writerows(close_pairs)
