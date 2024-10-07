@@ -43,8 +43,10 @@ import argparse
 import functools
 # import cProfile
 
-def star_source_id(star):
-    return star['DESIGNATION'].replace('Gaia DR3 ', '')
+def star_source_id(star)->np.uint64:
+    id_val_str = star['DESIGNATION'].replace('Gaia DR3 ', '')
+    id_val_long = np.uint64(id_val_str)
+    return id_val_long
 
 
 def star_to_coord(star):
@@ -77,7 +79,6 @@ g_star_id_map = {}
 
 #  coord1.to_string('decimal')
 def extract_star_pos(star):
-    src_id = star_source_id(star)
     # pre-calculated distance from observer to star, in parsecs
     dist_pc = float(star['dist_pc'])
     # 	l (galactic longitude) ranges from 0 deg to 360 deg
@@ -96,7 +97,7 @@ def skycoord_from_raw(lon, lat, dist):
 
 g_star_skycoord_map = {}
 @functools.cache
-def calc_star_separation(src_id1, src_id2):
+def calc_star_separation(src_id1: np.uint64, src_id2: np.uint64):
     pos1 = g_star_skycoord_map.get(src_id1)
     if pos1 is None:
         star1 = g_star_id_map[src_id1]
@@ -130,18 +131,19 @@ def star_calc_fast(star1, star2):
     if g_star_id_map.get(src_id2) is None:
         g_star_id_map[src_id2] = star2
 
-    return calc_star_separation(src_id1, src_id2)
+    (rdist1, rdist2, linear_sep, ang_sep, coord1, coord2) = calc_star_separation(src_id1, src_id2)
+    return (src_id1, src_id2, rdist1, rdist2, linear_sep, ang_sep, coord1, coord2)
 
 def evaluate_one_combo(star1, star2, max_angle_deg:float= 0.25, max_radial_dist_pc: float = 100.):
     # perf_start_eval_one_combo = perf_counter()
     # TODO: We convert stars to coords multiple times, so either optimize the conversion or cache it (or both)
-    (rdist1, rdist2, linear_sep, ang_sep, coord1, coord2) = star_calc_fast(star1, star2)
+    (star_id1, star_id2, rdist1, rdist2, linear_sep, ang_sep, coord1, coord2) = star_calc_fast(star1, star2)
     if ang_sep <= max_angle_deg:
         max_node_dist = max(rdist1, rdist2)
         min_node_dist = min(rdist1, rdist2)
         if max_node_dist <= max_radial_dist_pc:
-            star1_name = star_source_id(star1)
-            star2_name = star_source_id(star2)
+            star1_name = str(star_id1)
+            star2_name = str(star_id1)
             if rdist1 > rdist2:
                 src_name: str = star1_name
                 dest_name: str = star2_name
@@ -190,12 +192,16 @@ def find_close_pairs(stars: Table, max_angle_deg:float= 0.25, max_radial_dist_pc
             close_pairs.append(found_pair)
             if csv_writer is not None:
                 csv_writer.writerow(found_pair)
+
+            # print(f"found_pair: {found_pair}")
+
+            elapsed_combo_evals = perf_counter() - perf_start_combos
+            eval_rate = elapsed_combo_evals / n_evaluated_combos
+            print(f"{n_found_pairs} found, {n_evaluated_combos} evaluated, {n_expected_combos} combos "
+                  f">> elapsed : {elapsed_combo_evals:0.2f} sec ({eval_rate:0.6f} combos/sec")
+            if n_found_pairs % 10 == 0:
                 if file_ref is not None:
                     file_ref.flush()
-            print(f"found_pair: {found_pair}")
-
-            print(f"{n_found_pairs} found, {n_evaluated_combos} evaluated, {n_expected_combos} combos "
-                  f">> elapsed : {perf_counter() - perf_start_combos:0.2f} sec")
             # if n_found_pairs % 2 == 0:
             #     # profile_results.print_stats(sort='time')
             #     profiler.print_stats(sort='time')
@@ -240,7 +246,7 @@ def main():
                    "dest_name"]
 
     with open(f"./data/{basename_without_ext}_ma{max_glancing_angle_int}_mr{int(max_radial_dist_pc)}_pairs.csv",
-              'w') as file_ref:
+              'a') as file_ref:
         csv_writer = csv.writer(file_ref)
         csv_writer.writerow(field_names)
         file_ref.flush()
