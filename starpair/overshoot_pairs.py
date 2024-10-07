@@ -41,7 +41,7 @@ from astropy.io import fits
 
 import argparse
 import functools
-import cProfile
+# import cProfile
 
 def star_source_id(star):
     return star['DESIGNATION'].replace('Gaia DR3 ', '')
@@ -175,14 +175,14 @@ def find_close_pairs(stars: Table, max_angle_deg:float= 0.25, max_radial_dist_pc
     perf_start_combos = perf_counter()
     all_star_combos = combinations(stars, 2)
 
-    profiler = cProfile.Profile()
+    # profiler = cProfile.Profile()
     # profile_results = []
 
     for star1, star2 in all_star_combos:
         n_evaluated_combos += 1
-        profiler.enable()
+        # profiler.enable()
         found_pair = evaluate_one_combo(star1, star2, max_angle_deg, max_radial_dist_pc)
-        profiler.disable()
+        # profiler.disable()
         # profile_results.append(profiler)
 
         if found_pair is not None:
@@ -194,9 +194,9 @@ def find_close_pairs(stars: Table, max_angle_deg:float= 0.25, max_radial_dist_pc
 
             print(f"{n_found_pairs} found, {n_evaluated_combos} evaluated, {n_expected_combos} combos "
                   f">> elapsed : {perf_counter() - perf_start_combos:0.2f} sec")
-            if n_found_pairs % 2 == 0:
-                # profile_results.print_stats(sort='time')
-                profiler.print_stats()
+            # if n_found_pairs % 2 == 0:
+            #     # profile_results.print_stats(sort='time')
+            #     profiler.print_stats(sort='time')
 
     print(f"found: {n_found_pairs} ({len(close_pairs)}) close pairs of {n_expected_combos} total ")
     return close_pairs
