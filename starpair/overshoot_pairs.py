@@ -40,87 +40,211 @@ from astropy.units import Quantity
 from astropy.io import fits
 
 import argparse
+import functools
+import cProfile
+
+def star_source_id(star):
+    return star['DESIGNATION'].replace('Gaia DR3 ', '')
 
 
 def star_to_coord(star):
     parallax = star['parallax']
-    star_name = star['DESIGNATION']
 
+    # TODO store an inverse star map of coord to star ?
     if parallax is None:
-        print(f"{star_name} parallax is None")
+        print(f"{star['DESIGNATION']} parallax is None")
         parallax = sys.float_info.epsilon
     elif isinstance(parallax, np.ndarray):
-        # print(f"{star_name} parallax is bogus array: {parallax}")
+        print(f"{star['DESIGNATION']} parallax is bogus array: {parallax}")
         parallax = parallax[0]
         if parallax == 0:
             parallax = sys.float_info.epsilon
     elif isinstance(parallax, (list, tuple)):
-        print(f"parallax is list: {parallax}")
+        print(f"{star['DESIGNATION']} parallax is list: {parallax}")
         parallax = sys.float_info.epsilon
 
+    # TODO: dist_pc should be precalculated and ready for this
     coord = SkyCoord(l=star['l'] * u.deg,
                      b=star['b'] * u.deg,
-                     distance=(1000 / parallax),
+                     distance=float(star['dist_pc']),
+                     # distance=(1000 / parallax),
                      frame='galactic'
                      )
-    # coord = SkyCoord(ra=star['ra'] * u.deg,
-    #                  dec=star['dec'] * u.deg,
-    #                  distance=(1000 / parallax),
-    #                  frame='icrs'
-    #                  )
     return coord
 
 
-def distance_between_coords(coord1: SkyCoord, coord2: SkyCoord) -> float:
-    assert coord1.frame.name == 'galactic'
-    distance: Distance = coord1.separation_3d(coord2)
-    return float(distance.value)
+g_star_id_map = {}
 
+#  coord1.to_string('decimal')
+def extract_star_pos(star):
+    src_id = star_source_id(star)
+    # pre-calculated distance from observer to star, in parsecs
+    dist_pc = float(star['dist_pc'])
+    # 	l (galactic longitude) ranges from 0 deg to 360 deg
+    galactic_longitude = star['l']
+    # 	b (galactic latitude) ranges from -90 deg to +90 deg
+    galactic_latitude = star['b']
 
-def find_close_pairs(stars: Table, max_angle_deg: Angle = Angle('0.25d'), max_radial_dist_pc: float = 100.):
-    """Search all the given stars for very close neighbors.
+    return galactic_longitude, galactic_latitude, dist_pc
+
+@functools.cache
+def skycoord_from_raw(lon, lat, dist):
+    return SkyCoord(l=lon * u.deg,
+             b=lat * u.deg,
+             distance=dist,
+             frame='galactic')
+
+g_star_skycoord_map = {}
+@functools.cache
+def calc_star_separation(src_id1, src_id2):
+    pos1 = g_star_skycoord_map.get(src_id1)
+    if pos1 is None:
+        star1 = g_star_id_map[src_id1]
+        lon1, lat1, rdist1 = extract_star_pos(star1)
+        coord1 = skycoord_from_raw(lon1, lat1, rdist1)
+        g_star_skycoord_map[src_id1] = lon1, lat1, rdist1, coord1
+    else:
+        lon1, lat1, rdist1, coord1 = pos1
+
+    pos2 = g_star_skycoord_map.get(src_id2)
+    if pos2 is None:
+        star2 = g_star_id_map[src_id2]
+        lon2, lat2, rdist2 = extract_star_pos(star2)
+        coord2 = skycoord_from_raw(lon2, lat2, rdist2)
+        g_star_skycoord_map[src_id2] = lon2, lat2, rdist2, coord2
+    else:
+        lon2, lat2, rdist2, coord2 = pos2
+
+    linear_sep = float(abs(rdist1 - rdist2))
+    ang_sep: float = float(coord1.separation(coord2).value)
+    res = (rdist1, rdist2, linear_sep, ang_sep, coord1, coord2)
+    # print(f"res: {res}")
+
+    return res
+
+def star_calc_fast(star1, star2):
+    src_id1 = star_source_id(star1)
+    src_id2 = star_source_id(star2)
+    if g_star_id_map.get(src_id1) is None:
+        g_star_id_map[src_id1] = star1
+    if g_star_id_map.get(src_id2) is None:
+        g_star_id_map[src_id2] = star2
+
+    return calc_star_separation(src_id1, src_id2)
+
+def evaluate_one_combo(star1, star2, max_angle_deg:float= 0.25, max_radial_dist_pc: float = 100.):
+    # perf_start_eval_one_combo = perf_counter()
+    # TODO: We convert stars to coords multiple times, so either optimize the conversion or cache it (or both)
+    (rdist1, rdist2, linear_sep, ang_sep, coord1, coord2) = star_calc_fast(star1, star2)
+    if ang_sep <= max_angle_deg:
+        max_node_dist = max(rdist1, rdist2)
+        min_node_dist = min(rdist1, rdist2)
+        if max_node_dist <= max_radial_dist_pc:
+            star1_name = star_source_id(star1)
+            star2_name = star_source_id(star2)
+            if rdist1 > rdist2:
+                src_name: str = star1_name
+                dest_name: str = star2_name
+                src_coord = coord1.to_string('decimal')
+                dest_coord = coord2.to_string('decimal')
+            else:
+                src_name: str = star2_name
+                dest_name: str = star1_name
+                src_coord = coord2.to_string('decimal')
+                dest_coord = coord1.to_string('decimal')
+            return (
+                max_node_dist, min_node_dist,
+                ang_sep, linear_sep,
+                src_coord, dest_coord,
+                src_name, dest_name)
+        else:
+            return None
+
+            # close_pairs.append(star_pair)
+            # n_found_pairs += 1
+            # if csv_writer is not None:
+            #     csv_writer.writerow(star_pair)
+            # print(f"{n_found_pairs} found, {n_evaluated_combos} evaluated, {n_expected_combos} combos "
+            #       f">> elapsed : {perf_counter() - perf_start_combos:0.2f} sec")
+            # print(f"src: {max_node_dist:0.4f} pc, dst: {min_node_dist:0.4f} pc, "
+            #       f"ang_sep: {ang_sep:0.2f}, radial_sep: {linear_sep:0.2f} pc "
+            #       f" origin {src_coord} dest {dest_coord} "
+            #       f"({src_name} > {dest_name}) ")
+            # print(f"One eval >> elapsed: {perf_counter() - perf_start_eval_one_combo:0.4f} sec")
+            # print(f"pair: {star_pair}")
+
+def find_close_pairs(stars: Table, max_angle_deg:float= 0.25, max_radial_dist_pc: float = 100.,
+                     csv_writer=None):
+    """Search all the given stars for very close neighbors,
+    where the maximum on-sky angle between the two stars is less than max_angle_deg,
+    and the maximum linear (radial) distance is less than max_radial_dist_pc
     """
     close_pairs = []
     num_items = len(stars)
     n_expected_combos = math.comb(num_items, 2)
     n_found_pairs: int = 0
-
+    n_evaluated_combos = 0
+    perf_start_combos = perf_counter()
     all_star_combos = combinations(stars, 2)
-    for star1, star2 in all_star_combos:
-        coord1 = star_to_coord(star1)
-        coord2 = star_to_coord(star2)
-        ang_sep: Angle = coord1.separation(coord2)
-        if ang_sep <= max_angle_deg:
-            star1_dist = float(star1['dist_pc'])
-            star2_dist = float(star2['dist_pc'])
-            max_node_dist = max(star1_dist, star2_dist)
-            min_node_dist = min(star1_dist, star2_dist)
-            if max_node_dist <= max_radial_dist_pc:
-                radial_sep = distance_between_coords(coord1, coord2)
-                star1_name = star1['DESIGNATION'].replace('Gaia DR3 ', '')
-                star2_name = star2['DESIGNATION'].replace('Gaia DR3 ', '')
-                ang_sep_val = float(ang_sep.value)
-                if star1_dist > star2_dist:
-                    origin_name: str = star1_name
-                    dest_name: str = star2_name
-                    origin_coord = coord1.to_string('decimal')
-                    dest_coord = coord2.to_string('decimal')
-                else:
-                    origin_name: str = star2_name
-                    dest_name: str = star1_name
-                    origin_coord = coord2.to_string('decimal')
-                    dest_coord = coord1.to_string('decimal')
 
-                star_pair = (
-                max_node_dist, min_node_dist, ang_sep_val, radial_sep, origin_coord, dest_coord, origin_name, dest_name)
-                close_pairs.append((max_node_dist, min_node_dist, ang_sep_val, radial_sep, origin_coord, dest_coord,
-                                    origin_name, dest_name))
-                n_found_pairs += 1
-                print(f"{n_found_pairs} origin: {max_node_dist:0.4f} pc, dest: {min_node_dist:0.4f} pc, "
-                      f"ang_sep: {ang_sep:0.2f}, radial_sep: {radial_sep:0.2f} pc "
-                      f" origin {origin_coord} dest {dest_coord} "
-                      f"({origin_name} > {dest_name}) ")
-                # print(f"pair: {star_pair}")
+    profiler = cProfile.Profile()
+    profile_results = []
+
+    for star1, star2 in all_star_combos:
+        n_evaluated_combos += 1
+        profiler.enable()
+        found_pair = evaluate_one_combo(star1, star2, max_angle_deg, max_radial_dist_pc)
+        profiler.disable()
+        profile_results.append(profiler)
+
+        if found_pair is not None:
+            n_found_pairs += 1
+            close_pairs.append(found_pair)
+            if csv_writer is not None:
+                csv_writer.writerow(found_pair)
+            print(f"found_pair: {found_pair}")
+
+            print(f"{n_found_pairs} found, {n_evaluated_combos} evaluated, {n_expected_combos} combos "
+                  f">> elapsed : {perf_counter() - perf_start_combos:0.2f} sec")
+            if n_found_pairs % 2 == 0:
+                profile_results.print_stats(sort='time')
+
+        #
+        # # TODO: We convert stars to coords multiple times, so either optimize the conversion or cache it (or both)
+        # (rdist1, rdist2, linear_sep, ang_sep, coord1, coord2) = star_calc_fast(star1, star2)
+        # if ang_sep <= max_angle_deg:
+        #     max_node_dist = max(rdist1, rdist2)
+        #     min_node_dist = min(rdist1, rdist2)
+        #     if max_node_dist <= max_radial_dist_pc:
+        #         star1_name = star_source_id(star1)
+        #         star2_name = star_source_id(star2)
+        #         if rdist1 > rdist2:
+        #             src_name: str = star1_name
+        #             dest_name: str = star2_name
+        #             src_coord = coord1.to_string('decimal')
+        #             dest_coord = coord2.to_string('decimal')
+        #         else:
+        #             src_name: str = star2_name
+        #             dest_name: str = star1_name
+        #             src_coord = coord2.to_string('decimal')
+        #             dest_coord = coord1.to_string('decimal')
+        #         star_pair = (
+        #             max_node_dist, min_node_dist,
+        #             ang_sep, linear_sep,
+        #             src_coord, dest_coord,
+        #             src_name, dest_name)
+        #         close_pairs.append(star_pair)
+        #         n_found_pairs += 1
+        #         if csv_writer is not None:
+        #             csv_writer.writerow(star_pair)
+        #         print(f"{n_found_pairs} found, {n_evaluated_combos} evaluated, {n_expected_combos} combos "
+        #               f">> elapsed : {perf_counter() - perf_start_combos:0.2f} sec")
+        #         print(f"src: {max_node_dist:0.4f} pc, dst: {min_node_dist:0.4f} pc, "
+        #               f"ang_sep: {ang_sep:0.2f}, radial_sep: {linear_sep:0.2f} pc "
+        #               f" origin {src_coord} dest {dest_coord} "
+        #               f"({src_name} > {dest_name}) ")
+        #         # print(f"One eval >> elapsed: {perf_counter() - perf_start_eval_one_combo:0.4f} sec")
+        #         # print(f"pair: {star_pair}")
 
     print(f"found: {n_found_pairs} ({len(close_pairs)}) close pairs of {n_expected_combos} total ")
     return close_pairs
@@ -152,23 +276,31 @@ def main():
     stars_table.info()
     # print(f"dec units: {stars_table['dec'].unit}")
 
-    glancing_angle_deg = 0.25
-    max_glancing_angle = Angle(f'{glancing_angle_deg:0.2}d')
+    # glancing_angle_deg = 0.25
+    # max_glancing_angle = Angle(f'{glancing_angle_deg:0.2}d')
+    max_glancing_angle = 0.25
     max_radial_dist_pc = 60
-    close_pairs = find_close_pairs(stars_table, max_angle_deg=max_glancing_angle, max_radial_dist_pc=max_radial_dist_pc)
+    max_glancing_angle_int = int(max_glancing_angle * 1000)
+
     field_names = ["max_node_dist", "min_node_dist", "ang_sep_val", "radial_sep", "coord1", "coord2", "origin_name",
                    "dest_name"]
-    max_glancing_angle_int = int(glancing_angle_deg * 1000)
 
-    # sort pairs in order by ascending distance to most distant node
-    print(f"Sorting all pairs... {len(close_pairs)}")
-    close_pairs.sort(key=lambda tup: tup[0])
-    print(f"Writing {len(close_pairs)} close pairs")
     with open(f"./data/{basename_without_ext}_ma{max_glancing_angle_int}_mr{int(max_radial_dist_pc)}_pairs.csv",
               'w') as f:
-        writer = csv.writer(f)
-        writer.writerow(field_names)
-        writer.writerows(close_pairs)
+        csv_writer = csv.writer(f)
+        csv_writer.writerow(field_names)
+        # csv_writer.writerows(close_pairs)
+        find_close_pairs(stars_table,max_angle_deg=max_glancing_angle, max_radial_dist_pc=max_radial_dist_pc, csv_writer=csv_writer)
+
+    # # sort pairs in order by ascending distance to most distant node
+    # print(f"Sorting all pairs... {len(close_pairs)}")
+    # close_pairs.sort(key=lambda tup: tup[0])
+    # print(f"Writing {len(close_pairs)} close pairs")
+    # with open(f"./data/{basename_without_ext}_ma{max_glancing_angle_int}_mr{int(max_radial_dist_pc)}_sorted.csv",
+    #           'w') as f:
+    #     writer = csv.writer(f)
+    #     writer.writerow(field_names)
+    #     writer.writerows(close_pairs)
 
 
 if __name__ == "__main__":
