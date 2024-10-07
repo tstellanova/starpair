@@ -162,7 +162,7 @@ def evaluate_one_combo(star1, star2, max_angle_deg:float= 0.25, max_radial_dist_
 
 
 def find_close_pairs(stars: Table, max_angle_deg:float= 0.25, max_radial_dist_pc: float = 100.,
-                     csv_writer=None):
+                     csv_writer=None, file_ref=None):
     """Search all the given stars for very close neighbors,
     where the maximum on-sky angle between the two stars is less than max_angle_deg,
     and the maximum linear (radial) distance is less than max_radial_dist_pc
@@ -190,6 +190,8 @@ def find_close_pairs(stars: Table, max_angle_deg:float= 0.25, max_radial_dist_pc
             close_pairs.append(found_pair)
             if csv_writer is not None:
                 csv_writer.writerow(found_pair)
+                if file_ref is not None:
+                    file_ref.flush()
             print(f"found_pair: {found_pair}")
 
             print(f"{n_found_pairs} found, {n_evaluated_combos} evaluated, {n_expected_combos} combos "
@@ -238,10 +240,12 @@ def main():
                    "dest_name"]
 
     with open(f"./data/{basename_without_ext}_ma{max_glancing_angle_int}_mr{int(max_radial_dist_pc)}_pairs.csv",
-              'w') as f:
-        csv_writer = csv.writer(f)
+              'w') as file_ref:
+        csv_writer = csv.writer(file_ref)
         csv_writer.writerow(field_names)
-        close_pairs = find_close_pairs(stars_table,max_angle_deg=max_glancing_angle, max_radial_dist_pc=max_radial_dist_pc, csv_writer=csv_writer)
+        file_ref.flush()
+        close_pairs = find_close_pairs(stars_table,max_angle_deg=max_glancing_angle, max_radial_dist_pc=max_radial_dist_pc,
+                                       csv_writer=csv_writer, file_ref=file_ref)
 
     # sort pairs in order by ascending distance to most distant node
     print(f"Sorting all pairs... {len(close_pairs)}")
