@@ -160,18 +160,6 @@ def evaluate_one_combo(star1, star2, max_angle_deg:float= 0.25, max_radial_dist_
         else:
             return None
 
-            # close_pairs.append(star_pair)
-            # n_found_pairs += 1
-            # if csv_writer is not None:
-            #     csv_writer.writerow(star_pair)
-            # print(f"{n_found_pairs} found, {n_evaluated_combos} evaluated, {n_expected_combos} combos "
-            #       f">> elapsed : {perf_counter() - perf_start_combos:0.2f} sec")
-            # print(f"src: {max_node_dist:0.4f} pc, dst: {min_node_dist:0.4f} pc, "
-            #       f"ang_sep: {ang_sep:0.2f}, radial_sep: {linear_sep:0.2f} pc "
-            #       f" origin {src_coord} dest {dest_coord} "
-            #       f"({src_name} > {dest_name}) ")
-            # print(f"One eval >> elapsed: {perf_counter() - perf_start_eval_one_combo:0.4f} sec")
-            # print(f"pair: {star_pair}")
 
 def find_close_pairs(stars: Table, max_angle_deg:float= 0.25, max_radial_dist_pc: float = 100.,
                      csv_writer=None):
@@ -188,14 +176,14 @@ def find_close_pairs(stars: Table, max_angle_deg:float= 0.25, max_radial_dist_pc
     all_star_combos = combinations(stars, 2)
 
     profiler = cProfile.Profile()
-    profile_results = []
+    # profile_results = []
 
     for star1, star2 in all_star_combos:
         n_evaluated_combos += 1
         profiler.enable()
         found_pair = evaluate_one_combo(star1, star2, max_angle_deg, max_radial_dist_pc)
         profiler.disable()
-        profile_results.append(profiler)
+        # profile_results.append(profiler)
 
         if found_pair is not None:
             n_found_pairs += 1
@@ -207,44 +195,8 @@ def find_close_pairs(stars: Table, max_angle_deg:float= 0.25, max_radial_dist_pc
             print(f"{n_found_pairs} found, {n_evaluated_combos} evaluated, {n_expected_combos} combos "
                   f">> elapsed : {perf_counter() - perf_start_combos:0.2f} sec")
             if n_found_pairs % 2 == 0:
-                profile_results.print_stats(sort='time')
-
-        #
-        # # TODO: We convert stars to coords multiple times, so either optimize the conversion or cache it (or both)
-        # (rdist1, rdist2, linear_sep, ang_sep, coord1, coord2) = star_calc_fast(star1, star2)
-        # if ang_sep <= max_angle_deg:
-        #     max_node_dist = max(rdist1, rdist2)
-        #     min_node_dist = min(rdist1, rdist2)
-        #     if max_node_dist <= max_radial_dist_pc:
-        #         star1_name = star_source_id(star1)
-        #         star2_name = star_source_id(star2)
-        #         if rdist1 > rdist2:
-        #             src_name: str = star1_name
-        #             dest_name: str = star2_name
-        #             src_coord = coord1.to_string('decimal')
-        #             dest_coord = coord2.to_string('decimal')
-        #         else:
-        #             src_name: str = star2_name
-        #             dest_name: str = star1_name
-        #             src_coord = coord2.to_string('decimal')
-        #             dest_coord = coord1.to_string('decimal')
-        #         star_pair = (
-        #             max_node_dist, min_node_dist,
-        #             ang_sep, linear_sep,
-        #             src_coord, dest_coord,
-        #             src_name, dest_name)
-        #         close_pairs.append(star_pair)
-        #         n_found_pairs += 1
-        #         if csv_writer is not None:
-        #             csv_writer.writerow(star_pair)
-        #         print(f"{n_found_pairs} found, {n_evaluated_combos} evaluated, {n_expected_combos} combos "
-        #               f">> elapsed : {perf_counter() - perf_start_combos:0.2f} sec")
-        #         print(f"src: {max_node_dist:0.4f} pc, dst: {min_node_dist:0.4f} pc, "
-        #               f"ang_sep: {ang_sep:0.2f}, radial_sep: {linear_sep:0.2f} pc "
-        #               f" origin {src_coord} dest {dest_coord} "
-        #               f"({src_name} > {dest_name}) ")
-        #         # print(f"One eval >> elapsed: {perf_counter() - perf_start_eval_one_combo:0.4f} sec")
-        #         # print(f"pair: {star_pair}")
+                # profile_results.print_stats(sort='time')
+                profiler.print_stats()
 
     print(f"found: {n_found_pairs} ({len(close_pairs)}) close pairs of {n_expected_combos} total ")
     return close_pairs
@@ -289,18 +241,17 @@ def main():
               'w') as f:
         csv_writer = csv.writer(f)
         csv_writer.writerow(field_names)
-        # csv_writer.writerows(close_pairs)
-        find_close_pairs(stars_table,max_angle_deg=max_glancing_angle, max_radial_dist_pc=max_radial_dist_pc, csv_writer=csv_writer)
+        close_pairs = find_close_pairs(stars_table,max_angle_deg=max_glancing_angle, max_radial_dist_pc=max_radial_dist_pc, csv_writer=csv_writer)
 
-    # # sort pairs in order by ascending distance to most distant node
-    # print(f"Sorting all pairs... {len(close_pairs)}")
-    # close_pairs.sort(key=lambda tup: tup[0])
-    # print(f"Writing {len(close_pairs)} close pairs")
-    # with open(f"./data/{basename_without_ext}_ma{max_glancing_angle_int}_mr{int(max_radial_dist_pc)}_sorted.csv",
-    #           'w') as f:
-    #     writer = csv.writer(f)
-    #     writer.writerow(field_names)
-    #     writer.writerows(close_pairs)
+    # sort pairs in order by ascending distance to most distant node
+    print(f"Sorting all pairs... {len(close_pairs)}")
+    close_pairs.sort(key=lambda tup: tup[0])
+    print(f"Writing {len(close_pairs)} close pairs")
+    with open(f"./data/{basename_without_ext}_ma{max_glancing_angle_int}_mr{int(max_radial_dist_pc)}_sorted.csv",
+              'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(field_names)
+        writer.writerows(close_pairs)
 
 
 if __name__ == "__main__":
