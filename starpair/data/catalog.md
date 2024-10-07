@@ -30,21 +30,21 @@ galactic outercone query >>> elapsed: 6893.27 seconds
 `galactic_outercone_L2e+09_ri60_ro90_d100_0_0.fits.gz`
   galactic outercone query >>> elapsed: 2078.54 seconds
 
-### Re-query oneshot with L,B parameters 45 degrees
+## Re-query oneshot with L,B parameters 45 degrees
 DESIGNATION,ref_epoch,ra,dec,parallax,l,b,pm,pmra,pmdec,phot_g_mean_mag, ABS(1000./parallax) AS dist_pc, DISTANCE(180.00, 0.00, l, b) AS ang_sep
 
-### Limit 2.0e+09 igalactic r45
+### Limit 2e9 igalactic r45
 240634 nearby stars  written to:
 `galactic_L2e+09_r45_d100_0_0.fits.gz`
 galactic query >>> elapsed: 2274.69 seconds
 
-### Limit 2.0e+09 antigalactic r45 
+### Limit 2e9 antigalactic r45 
 48954 nearby stars  written to:
 `antigalactic_L2e+09_r45_d100_18000_0.fits.gz`
 antigalactic query >>> elapsed: 1817.21 seconds
 
 
-### Re-query oneshot with L, B parameters 
+## Re-query oneshot with L, B parameters 
 
 DESIGNATION,ref_epoch,ra,dec,parallax,l,b,pm,pmra,pmdec,phot_g_mean_mag, ABS(1000./parallax) AS dist_pc, DISTANCE(180.00, 0.00, l, b) AS ang_sep
 
@@ -77,3 +77,17 @@ galactic query >>> elapsed: 3595.14 seconds
 164731 nearby stars written to:
 `antigalactic_L2e+09_r90_d100_18000_0.fits.gz`
 antigalactic query >>> elapsed: 6189.96 seconds
+
+## Approximate quantities of data for 30, 45, 90 degree cones
+```shell
+(astrodata_env) todd@relap data % ls -latr galactic_L2e+09_*d100_0_0.fits.gz
+-rw-r--r--  1 todd  staff  13667577 Oct  3 20:08 galactic_L2e+09_r30_d100_0_0.fits.gz
+-rw-r--r--  1 todd  staff  21606955 Oct  4 23:21 galactic_L2e+09_r45_d100_0_0.fits.gz
+-rw-r--r--  1 todd  staff  37016369 Oct  5 01:42 galactic_L2e+09_r90_d100_0_0.fits.gz
+```
+```shell
+(astrodata_env) todd@relap data % ls -latr antigalactic_L2e+09_r*d100_18000_0.fits.gz
+-rw-r--r--  1 todd  staff   1734133 Oct  3 19:38 antigalactic_L2e+09_r30_d100_18000_0.fits.gz
+-rw-r--r--  1 todd  staff   4458179 Oct  4 23:51 antigalactic_L2e+09_r45_d100_18000_0.fits.gz
+-rw-r--r--  1 todd  staff  15010706 Oct  5 10:28 antigalactic_L2e+09_r90_d100_18000_0.fits.gz
+```

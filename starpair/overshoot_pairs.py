@@ -25,6 +25,7 @@ ORDER BY dist_pc, ang_sep
 """
 import csv
 import math
+import os
 import sys
 from itertools import combinations
 from time import perf_counter
@@ -58,10 +59,10 @@ def star_to_coord(star):
         parallax = sys.float_info.epsilon
 
     coord = SkyCoord(l=star['l'] * u.deg,
-                 b=star['b'] * u.deg,
-                 distance=(1000 / parallax),
-                 frame='galactic'
-                 )
+                     b=star['b'] * u.deg,
+                     distance=(1000 / parallax),
+                     frame='galactic'
+                     )
     # coord = SkyCoord(ra=star['ra'] * u.deg,
     #                  dec=star['dec'] * u.deg,
     #                  distance=(1000 / parallax),
@@ -72,17 +73,17 @@ def star_to_coord(star):
 
 def distance_between_coords(coord1: SkyCoord, coord2: SkyCoord) -> float:
     assert coord1.frame.name == 'galactic'
-    distance:Distance = coord1.separation_3d(coord2)
+    distance: Distance = coord1.separation_3d(coord2)
     return float(distance.value)
 
 
-def find_close_pairs(stars: Table, max_angle_deg: Angle = Angle('0.25d'), max_radial_dist_pc:float = 100.):
+def find_close_pairs(stars: Table, max_angle_deg: Angle = Angle('0.25d'), max_radial_dist_pc: float = 100.):
     """Search all the given stars for very close neighbors.
     """
     close_pairs = []
     num_items = len(stars)
     n_expected_combos = math.comb(num_items, 2)
-    n_found_pairs:int = 0
+    n_found_pairs: int = 0
 
     all_star_combos = combinations(stars, 2)
     for star1, star2 in all_star_combos:
@@ -96,22 +97,24 @@ def find_close_pairs(stars: Table, max_angle_deg: Angle = Angle('0.25d'), max_ra
             min_node_dist = min(star1_dist, star2_dist)
             if max_node_dist <= max_radial_dist_pc:
                 radial_sep = distance_between_coords(coord1, coord2)
-                star1_name = star1['DESIGNATION'].replace('Gaia DR3 ','')
-                star2_name = star2['DESIGNATION'].replace('Gaia DR3 ','')
+                star1_name = star1['DESIGNATION'].replace('Gaia DR3 ', '')
+                star2_name = star2['DESIGNATION'].replace('Gaia DR3 ', '')
                 ang_sep_val = float(ang_sep.value)
                 if star1_dist > star2_dist:
-                    origin_name:str = star1_name
-                    dest_name:str = star2_name
+                    origin_name: str = star1_name
+                    dest_name: str = star2_name
                     origin_coord = coord1.to_string('decimal')
                     dest_coord = coord2.to_string('decimal')
                 else:
-                    origin_name:str = star2_name
-                    dest_name:str = star1_name
+                    origin_name: str = star2_name
+                    dest_name: str = star1_name
                     origin_coord = coord2.to_string('decimal')
                     dest_coord = coord1.to_string('decimal')
 
-                star_pair = (max_node_dist, min_node_dist, ang_sep_val, radial_sep, origin_coord, dest_coord, origin_name, dest_name)
-                close_pairs.append((max_node_dist, min_node_dist, ang_sep_val, radial_sep, origin_coord, dest_coord, origin_name, dest_name))
+                star_pair = (
+                max_node_dist, min_node_dist, ang_sep_val, radial_sep, origin_coord, dest_coord, origin_name, dest_name)
+                close_pairs.append((max_node_dist, min_node_dist, ang_sep_val, radial_sep, origin_coord, dest_coord,
+                                    origin_name, dest_name))
                 n_found_pairs += 1
                 print(f"{n_found_pairs} origin: {max_node_dist:0.4f} pc, dest: {min_node_dist:0.4f} pc, "
                       f"ang_sep: {ang_sep:0.2f}, radial_sep: {radial_sep:0.2f} pc "
@@ -128,8 +131,6 @@ def main():
     parser.add_argument('src_path', nargs='?',
                         default="./data/galactic_L2e+09_r90_d100_0_0.fits.gz",
                         # default="./data/galactic_L2e+09_r45_d100_0_0.fits.gz",
-                        # default="./data/antigalactic_L10k_r10_d306_merged.fits.gz",
-                        # default="./data/anti_galactic_line_2_deg.fits.gz",
                         help="Source data file with `.fits` or `.fits.gz` extension",
                         )
     parser.add_argument('-o', dest='outdir', type=str, default='./data',
@@ -137,6 +138,8 @@ def main():
 
     args = parser.parse_args()
     data_file_name = args.src_path
+    basename_without_ext = os.path.splitext(os.path.basename(data_file_name))[0]
+
     out_dir = args.outdir
     print(f"Loading: {data_file_name} , output to: {out_dir}")
 
@@ -151,19 +154,21 @@ def main():
 
     glancing_angle_deg = 0.25
     max_glancing_angle = Angle(f'{glancing_angle_deg:0.2}d')
-    close_pairs = find_close_pairs(stars_table, max_angle_deg=max_glancing_angle, max_radial_dist_pc=60)
-    field_names = ["max_node_dist", "min_node_dist", "ang_sep_val", "radial_sep", "coord1", "coord2", "origin_name", "dest_name"]
+    max_radial_dist_pc = 60
+    close_pairs = find_close_pairs(stars_table, max_angle_deg=max_glancing_angle, max_radial_dist_pc=max_radial_dist_pc)
+    field_names = ["max_node_dist", "min_node_dist", "ang_sep_val", "radial_sep", "coord1", "coord2", "origin_name",
+                   "dest_name"]
     max_glancing_angle_int = int(glancing_angle_deg * 1000)
 
     # sort pairs in order by ascending distance to most distant node
     print(f"Sorting all pairs... {len(close_pairs)}")
     close_pairs.sort(key=lambda tup: tup[0])
     print(f"Writing {len(close_pairs)} close pairs")
-    with open(f"./data/galactic_L2e+09_r90_d100_0_0_a{max_glancing_angle_int}_pairs.csv", 'w') as f:
+    with open(f"./data/{basename_without_ext}_ma{max_glancing_angle_int}_mr{int(max_radial_dist_pc)}_pairs.csv",
+              'w') as f:
         writer = csv.writer(f)
         writer.writerow(field_names)
         writer.writerows(close_pairs)
-
 
 
 if __name__ == "__main__":
