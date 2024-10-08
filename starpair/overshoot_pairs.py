@@ -77,7 +77,6 @@ def star_to_coord(star):
 
 g_star_id_map = {}
 
-#  coord1.to_string('decimal')
 def extract_star_pos(star):
     # pre-calculated distance from observer to star, in parsecs
     dist_pc = float(star['dist_pc'])
@@ -88,12 +87,12 @@ def extract_star_pos(star):
 
     return galactic_longitude, galactic_latitude, dist_pc
 
-@functools.cache
-def skycoord_from_raw(lon, lat, dist):
-    return SkyCoord(l=lon * u.deg,
-             b=lat * u.deg,
-             distance=dist,
-             frame='galactic')
+# @functools.cache
+# def skycoord_from_raw(lon, lat, dist):
+#     return SkyCoord(l=lon * u.deg,
+#              b=lat * u.deg,
+#              distance=dist,
+#              frame='galactic')
 
 g_star_skycoord_map = {}
 @functools.cache
@@ -102,7 +101,11 @@ def star_coord_lookup(source_id: np.uint64):
     if all_coord is None:
         star = g_star_id_map[source_id]
         lon, lat, rdist = extract_star_pos(star)
-        skycoord = skycoord_from_raw(lon, lat, rdist)
+        # skycoord = skycoord_from_raw(lon, lat, rdist)
+        skycoord = SkyCoord(l=lon * u.deg,
+                            b=lat * u.deg,
+                            distance=rdist,
+                            frame='galactic')
         all_coord = lon, lat, rdist, skycoord
         g_star_skycoord_map[source_id] = all_coord
 
