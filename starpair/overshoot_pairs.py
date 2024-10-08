@@ -141,26 +141,25 @@ def evaluate_one_combo(star1, star2, max_angle_deg:float= 0.25, max_radial_dist_
     if ang_sep <= max_angle_deg:
         max_node_dist = max(rdist1, rdist2)
         min_node_dist = min(rdist1, rdist2)
-        if max_node_dist <= max_radial_dist_pc:
-            star1_name = str(star_id1)
-            star2_name = str(star_id1)
-            if rdist1 > rdist2:
-                src_name: str = star1_name
-                dest_name: str = star2_name
-                src_coord = coord1.to_string('decimal')
-                dest_coord = coord2.to_string('decimal')
-            else:
-                src_name: str = star2_name
-                dest_name: str = star1_name
-                src_coord = coord2.to_string('decimal')
-                dest_coord = coord1.to_string('decimal')
-            return (
-                max_node_dist, min_node_dist,
-                ang_sep, linear_sep,
-                src_coord, dest_coord,
-                src_name, dest_name)
+        star1_name = str(star_id1)
+        star2_name = str(star_id2)
+        if rdist1 > rdist2:
+            src_name: str = star1_name
+            dest_name: str = star2_name
+            src_coord = coord1.to_string('decimal')
+            dest_coord = coord2.to_string('decimal')
         else:
-            return None
+            src_name: str = star2_name
+            dest_name: str = star1_name
+            src_coord = coord2.to_string('decimal')
+            dest_coord = coord1.to_string('decimal')
+        return (
+            max_node_dist, min_node_dist,
+            ang_sep, linear_sep,
+            src_coord, dest_coord,
+            src_name, dest_name)
+
+    return None
 
 
 def find_close_pairs(stars: Table, max_angle_deg:float= 0.25, max_radial_dist_pc: float = 100.,
