@@ -196,9 +196,10 @@ def find_close_pairs(stars: Table, max_angle_deg:float= 0.25, max_radial_dist_pc
             # print(f"found_pair: {found_pair}")
 
             elapsed_combo_evals = perf_counter() - perf_start_combos
-            eval_rate = elapsed_combo_evals / n_evaluated_combos
+            eval_rate =  n_evaluated_combos / elapsed_combo_evals
+            remaining_secs = n_expected_combos / eval_rate
             print(f"{n_found_pairs} found, {n_evaluated_combos} evaluated, {n_expected_combos} combos "
-                  f">> elapsed : {elapsed_combo_evals:0.2f} sec ({eval_rate:0.6f} combos/sec")
+                  f">> elapsed : {elapsed_combo_evals:0.1f} sec ({eval_rate:0.1f} combos/sec , {remaining_secs:0.1f} secs remaining) ")
             if n_found_pairs % 10 == 0:
                 if file_ref is not None:
                     file_ref.flush()
