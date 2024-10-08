@@ -97,24 +97,20 @@ def skycoord_from_raw(lon, lat, dist):
 
 g_star_skycoord_map = {}
 @functools.cache
-def calc_star_separation(src_id1: np.uint64, src_id2: np.uint64):
-    pos1 = g_star_skycoord_map.get(src_id1)
-    if pos1 is None:
-        star1 = g_star_id_map[src_id1]
-        lon1, lat1, rdist1 = extract_star_pos(star1)
-        coord1 = skycoord_from_raw(lon1, lat1, rdist1)
-        g_star_skycoord_map[src_id1] = lon1, lat1, rdist1, coord1
-    else:
-        lon1, lat1, rdist1, coord1 = pos1
+def star_coord_lookup(source_id: np.uint64):
+    all_coord = g_star_skycoord_map.get(source_id)
+    if all_coord is None:
+        star = g_star_id_map[source_id]
+        lon, lat, rdist = extract_star_pos(star)
+        skycoord = skycoord_from_raw(lon, lat, rdist)
+        all_coord = lon, lat, rdist, skycoord
+        g_star_skycoord_map[source_id] = all_coord
 
-    pos2 = g_star_skycoord_map.get(src_id2)
-    if pos2 is None:
-        star2 = g_star_id_map[src_id2]
-        lon2, lat2, rdist2 = extract_star_pos(star2)
-        coord2 = skycoord_from_raw(lon2, lat2, rdist2)
-        g_star_skycoord_map[src_id2] = lon2, lat2, rdist2, coord2
-    else:
-        lon2, lat2, rdist2, coord2 = pos2
+    return all_coord
+
+def calc_star_separation(src_id1: np.uint64, src_id2: np.uint64):
+    lon1, lat1, rdist1, coord1 = star_coord_lookup(src_id1)
+    lon2, lat2, rdist2, coord2 = star_coord_lookup(src_id2)
 
     linear_sep = float(abs(rdist1 - rdist2))
     ang_sep: float = float(coord1.separation(coord2).value)
