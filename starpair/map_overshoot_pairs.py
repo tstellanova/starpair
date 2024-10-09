@@ -42,10 +42,6 @@ from astropy.io import fits
 import argparse
 
 import functools
-# from multiprocessing import Pool
-# import concurrent.futures
-# import multiprocessing as mp
-# from parallelbar import progress_map
 from tqdm import tqdm
 
 
