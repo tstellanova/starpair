@@ -1,26 +1,30 @@
 """
-Search local file Table of stars for star pairs,
-where we're looking for stars that are both along an axis "in front" of Earth,
+Search local file Table of stars for interesting star pairs.
+Here we're looking for stars that have a very small angular separation in the sky "in front" of Earth,
 not with Earth between the two stars in the pair.
+Theory: signals that are intentionally sent from a more distant origin star to a nearer destination star might "overshoot" the
+destination star and be receivable near Earth, if there's a small angular separation between the two stars,
+as measured from our perspective on Earth.
 
-To implement this we search star tables that are already sorted into cones
-either centered on the galactic line (pointed toward the Milky Way galactic center),
-or on the anti-galactic line (pointed way from the galactic center).
+To implement this we search star tables that are already sorted into cones either
+- centered on the galactic line (pointed toward the Milky Way galactic center),
+- or centered on the anti-galactic line (pointed way from the galactic center).
 
-We first collect all possible star pairs in these tables, then sort them in ascending order by their most distant node.
-Star pairs whose midpoint is closer to Earth would likely have more power receivable at Earth.
+We first collect all viable star pairs from these tables,
+then sort them in ascending order by their most distant node (which is assumed to be the origin node).
+Star pairs whose origin node is closer to Earth would likely have more power receivable at Earth.
 Secondary sort could be by angular separation between the two stars in the pair,
 with the idea that Earth is more likely to receive overshoot signals with shallower glancing angles.
 
+We expect star tables to be stored in FITS files with at least these columns from `gaiadr3.gaia_source`:
 
-We expect star tables to be stored in FITS files with at least these columns from gaiadr3.gaia_source:
-
-DESIGNATION,ref_epoch,ra,dec,parallax,pm,pmra,pmdec,phot_g_mean_mag,
+DESIGNATION,ref_epoch,ra,dec,parallax,l,b,pm,pmra,pmdec,phot_g_mean_mag,
 ABS(1000./parallax) AS dist_pc,
 DISTANCE({axis_lon:0.2f}, {axis_lat:0.2f}, l, b) AS ang_sep
 
 ORDER BY dist_pc, ang_sep
 
+(see `download_oneshot.py` for astroquery used)
 
 """
 import csv
@@ -72,12 +76,12 @@ def star_source_id_from_desig(star_desig: str) -> np.uint64:
     id_val_long = np.uint64(id_val_str)
     return id_val_long
 
-
-# g_n_expected_combos = 0
-# g_n_evaluated_combos = 0
-# g_n_found_pairs = 0
-
+# A map of star source_id -> the star's Table object
 g_starid_star_map = {}
+# A map of star source_id -> all the star's coordinates
+g_starid_allcoord_map = {}
+# A map of the star source_id -> the star's SkyCoord as a string
+g_starid_skycoord_str_map = {}
 
 
 def extract_star_pos(star):
@@ -90,9 +94,6 @@ def extract_star_pos(star):
     # ADQL precalculated: DISTANCE({axis_lon:0.2f}, {axis_lat:0.2f}, l, b) AS ang_sep
     axis_sep = star['ang_sep']
     return galactic_longitude, galactic_latitude, dist_pc, axis_sep
-
-
-g_starid_allcoord_map = {}
 
 
 @functools.cache
@@ -122,15 +123,12 @@ def range_filter_ok(lon1: np.float64, lon2: np.float64,
     return True
 
 
-g_skycoord_strs_by_id = {}
-
-
 @cache_by_first_arg
 def skycoord_str_lookup(source_id: np.uint64, skycoord: SkyCoord):
-    coord_str = g_skycoord_strs_by_id.get(source_id)
+    coord_str = g_starid_skycoord_str_map.get(source_id)
     if coord_str is None:
         coord_str = skycoord.to_string('decimal')
-        g_skycoord_strs_by_id[source_id] = coord_str
+        g_starid_skycoord_str_map[source_id] = coord_str
 
     return coord_str
 
@@ -201,8 +199,6 @@ def pre_cache_stars(stars: Table):
     pass
 
 
-
-
 def find_close_pairs(stars: Table, max_ang_sep_deg: np.float64 = 0.25):
     # csv_writer=None, file_ref=None):
     """Search all the given stars for very close neighbors,
@@ -231,7 +227,7 @@ def find_close_pairs(stars: Table, max_ang_sep_deg: np.float64 = 0.25):
         filter(lambda y: y is not None,
                map(lambda x:
                    evaluate_one_pair_candidate(x[0], x[1], max_ang_sep_deg),
-                   tqdm(combinations(all_star_ids, 2),total=n_expected_combos)
+                   tqdm(combinations(all_star_ids, 2), total=n_expected_combos)
                    )
                )
     )
