@@ -1,0 +1,12 @@
+Legend of Data Columns in HabCat CSV file:
+ - HIP — Hipparcos catalog number 
+ - RA — Right Ascension 
+ - DEC — Declination 
+ - V —  Johnson V-band magnitude 
+ - PARX — Parallax 
+ - SIGPX — Parallax standard error 
+ - B-V — B-V color index 
+ - SIGBV — B-V color index standard error 
+ - CCDM — Components of Double and Multiple Stars catalog number 
+ - HD — Henry Draper catalog number 
+ - BD — Bonner Durchmusterung catalog name
