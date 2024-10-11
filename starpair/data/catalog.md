@@ -91,3 +91,17 @@ antigalactic query >>> elapsed: 6189.96 seconds
 -rw-r--r--  1 todd  staff   4458179 Oct  4 23:51 antigalactic_L2e+09_r45_d100_18000_0.fits.gz
 -rw-r--r--  1 todd  staff  15010706 Oct  5 10:28 antigalactic_L2e+09_r90_d100_18000_0.fits.gz
 ```
+
+
+Assume my CSV file has the following comma-separated fields on each line:
+max_node_dist: float64
+min_node_dist: float64
+ang_sep: float64
+radial_sep: float64
+src_coord_str: two space-separated float64 numbers in a string of the form '175.521 -75.6869' representing g_lon and g_lat float64 fields
+dst_coord_str: same format as src_coord_str
+src_id: uint64
+dst_id: uint64
+
+
+
