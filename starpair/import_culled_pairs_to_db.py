@@ -52,13 +52,29 @@ def main():
     data_file_name = args.src_path
     basename_sans_ext = os.path.splitext(os.path.basename(data_file_name))[0]
 
+    # Initialize an empty dictionary
+    habcat_map = {}
+    habcat_map_row_count = 0
+    # import the habcat map file
+    with open('./habcat/gaia_dr3_habcat.csv', mode='r') as habcat_map_file:
+        csv_reader = csv.reader(habcat_map_file)
+        unused_header = next(csv_reader)
+        for habcat_row in csv_reader:
+            habcat_map_row_count += 1
+            gaia_dr3_id, hipparcos_id  = habcat_row
+            habcat_map[gaia_dr3_id] = hipparcos_id
+    print(f"num habcat entries: {habcat_map_row_count} vs {len(habcat_map)}")
+    habcat_map_file = None
+    habcat_row = None
+
     db_file_path = args.outpath
     if db_file_path is None:
-        db_file_path = f"./data/{basename_sans_ext}.db"
-    print(f"Loading: {data_file_name} , output to: {db_file_path}")
+        db_file_path = f"./data/{basename_sans_ext}_habcat_filt.db"
+    print(f"Input: {data_file_name} \nOutput: {db_file_path}")
 
     conn, cursor = open_db(db_file_path)
 
+    habcat_skip_count = 0
     # Read CSV and insert data into the table
     with open(data_file_name, 'r') as in_file:
         csv_reader = csv.reader(in_file)
@@ -75,6 +91,11 @@ def main():
 
             src_id_str = row[6]
             dst_id_str = row[7]
+
+            # cull star pairs that are not in the HabCat list
+            if habcat_map.get(src_id_str) is None and habcat_map.get(dst_id_str) is None:
+                habcat_skip_count += 1
+                continue
             src_id = np.uint64(src_id_str)
             dst_id = np.uint64(dst_id_str)
 
@@ -99,6 +120,7 @@ def main():
     # Close the connection
     conn.close()
 
+    print(f"habcat_skip_count {habcat_skip_count} ")
     print(f"CSV data imported into the SQLite database at: \n{db_file_path}")
 
 if __name__ == "__main__":
