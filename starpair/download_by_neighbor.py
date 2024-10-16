@@ -32,6 +32,7 @@ def query_nearby_stars_batch(center_source_id, coordinates, max_dist_pc: float =
 
 g_habstar_by_id_map = {}
 g_origstar_by_id_map = {}
+g_double_hab_list = []
 
 def main():
     parser = argparse.ArgumentParser(description='Download stars near other stars of interest')
@@ -50,11 +51,11 @@ def main():
     Gaia.ROW_LIMIT = int(total_gaia_objects)
     outfile_prefix = f"{out_dir}neighbors_L{total_gaia_objects:0.0e}"
     max_dist_pc = 100
-    max_ang_sep = 0.25
+    max_ang_sep = 0.5
     int_ang_sep = int(1000 * max_ang_sep)
     duplicate_output_filename = f"{outfile_prefix}_a{int_ang_sep}_d{max_dist_pc}.csv"
     unique_origins_output_filename = f"{out_dir}uniquepairs_L{total_gaia_objects:0.0e}_a{int_ang_sep}_d{max_dist_pc}.csv"
-
+    double_hab_output_filename = f"{out_dir}doublehab_L{total_gaia_objects:0.0e}_a{int_ang_sep}_d{max_dist_pc}.csv"
     print(f"Loading TOIs from: {toi_path} , output to: {duplicate_output_filename}")
 
     hab_list_row_count = 0
@@ -75,7 +76,7 @@ def main():
             else:
                 break
     n_concrete_habitable_stars = hab_list_row_count
-    print(f"n_concrete_habitable_stars: {hab_list_row_count}")
+    print(f"Num selected habitable stars: {hab_list_row_count}")
 
     # setup the output file
     field_names = ["orig_id","dest_id","orig_dist","dest_dist","ang_sep","radial_sep","orig_coord","dest_coord"]
@@ -111,15 +112,14 @@ def main():
             for neighbor in neighbors:
                 ang_sep = np.float64(neighbor['ang_sep'])
                 neighbor_gspphot_pc = neighbor['distance_gspphot']
+                neighbor_radial_dist_pc = np.nan
                 if neighbor_gspphot_pc != '--':
                     neighbor_radial_dist_pc = np.float64(neighbor_gspphot_pc)
-                else:
+                if np.isnan(neighbor_radial_dist_pc):
                     neighbor_radial_dist_pc = np.float64(neighbor['dist_pc'])
                 if np.isnan(neighbor_radial_dist_pc):
-                    print(f"bogus neighbor_radial_dist_pc: {neighbor_radial_dist_pc}")
                     neighbor_parallax = np.float64(neighbor['parallax'])
                     neighbor_radial_dist_pc = 1000.0/neighbor_parallax
-                    print(f"reprocess parallax {neighbor_parallax} from {neighbor['dist_pc']} -> {neighbor_radial_dist_pc}")
 
                 neighbor_id = np.uint64(neighbor['SOURCE_ID'])
                 neighbor_l = np.float64(neighbor['l'])
@@ -146,15 +146,21 @@ def main():
                 radial_sep = np.abs(radial_sep)
                 out_row = (origin_id, dest_id, origin_dist, dest_dist, ang_sep, radial_sep, origin_coord, dest_coord)
                 csv_writer.writerow(out_row)
+
+                double_hab_info = g_habstar_by_id_map.get(neighbor_id)
+                if double_hab_info is not None:
+                    print(f"double hab! {origin_id} -> {dest_id} radial_sep: {radial_sep} ang_sep: {ang_sep}")
+                    g_double_hab_list.append(out_row)
+
                 existing_orig = g_origstar_by_id_map.get(origin_id)
                 if existing_orig is None:
                     g_origstar_by_id_map[origin_id] = out_row
                 else:
                     duplicate_origins_count += 1
                     existing_radial_sep = existing_orig[5]
-                    if radial_sep < existing_radial_sep:
+                    if radial_sep > 0.5 and radial_sep < existing_radial_sep:
                         g_origstar_by_id_map[origin_id] = out_row
-                    print(f"{duplicate_origins_count} dup orig: {origin_id} -> dest: {dest_id} rsep new: {radial_sep} old: {existing_radial_sep}")
+                        print(f"{duplicate_origins_count} dup orig: {origin_id} -> dest: {dest_id} rsep new: {radial_sep} old: {existing_radial_sep}")
 
             file_ref.flush()
 
@@ -164,19 +170,35 @@ def main():
     file_ref.close()
     file_ref = None
     print(f"Total pairs: {total_star_pairs} duplicates: {duplicate_origins_count}")
-    print(f"Total unique origins: {len(g_origstar_by_id_map)}")
     print(f"Neighbor searching >> elapsed: {perf_counter() - perf_start_all_neighbors:0.3f} seconds")
     print(f"Wrote to: \n{duplicate_output_filename} ")
 
-    # Now write condensed info with unique origin IDs to a separate file
-    # field_names = ["orig_id","dest_id","orig_dist","dest_dist","ang_sep","radial_sep","orig_coord","dest_coord"]
-    file_ref = open(unique_origins_output_filename, 'w')
-    csv_writer = csv.writer(file_ref)
-    csv_writer.writerow(field_names)
-    file_ref.flush()
-    csv_writer.writerows(g_origstar_by_id_map.values())
-    file_ref.flush()
-    file_ref.close()
+    n_unique_origins = len(g_origstar_by_id_map)
+    if n_unique_origins > 0:
+        print(f"Total unique origins: {n_unique_origins}")
+        # Now write condensed info with unique origin IDs to a separate file
+        # field_names = ["orig_id","dest_id","orig_dist","dest_dist","ang_sep","radial_sep","orig_coord","dest_coord"]
+        with open(unique_origins_output_filename, mode='w') as file_ref:
+            csv_writer = csv.writer(file_ref)
+            csv_writer.writerow(field_names)
+            file_ref.flush()
+            csv_writer.writerows(g_origstar_by_id_map.values())
+            file_ref.flush()
+            file_ref.close()
+            print(f"Wrote unique origins to: \n{unique_origins_output_filename}")
+
+    n_double_hab_pairs = len(g_double_hab_list)
+    if n_double_hab_pairs > 0:
+        print(f"Have {n_double_hab_pairs} double-hab starpairs!")
+        with open(double_hab_output_filename, mode='w') as file_ref:
+            # Write double habs into another file
+            csv_writer = csv.writer(file_ref)
+            csv_writer.writerow(field_names)
+            file_ref.flush()
+            csv_writer.writerows(g_double_hab_list)
+            file_ref.flush()
+            file_ref.close()
+            print(f"Wrote double hab pairs to: \n{double_hab_output_filename}")
 
 if __name__ == "__main__":
     main()
