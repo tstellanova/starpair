@@ -2,39 +2,9 @@ import argparse
 from time import perf_counter
 
 import numpy as np
-import pandas as pd
 from astroquery.gaia import Gaia
-from astropy.coordinates import SkyCoord
-import astropy.units as u
 import csv
 
-
-#     DESIGNATION,ref_epoch,ra,dec,parallax,l,b,pm,pmra,pmdec,phot_g_mean_mag, ABS(1000./parallax) AS dist_pc,
-#     DISTANCE({axis_lon:0.2f}, {axis_lat:0.2f}, l, b) AS ang_sep
-
-
-# Function to query Gaia for stars around a specific source
-# def query_gaia_for_source_neighbors(source_id, max_radial_dist_pc: float = 100)
-
-# Function to get the Galactic coordinates (l, b) for a batch of source_ids
-def get_star_info_by_gaia_source_id(source_ids):
-    source_id_list = ', '.join(map(str, source_ids))
-    query = f"""
-    SELECT SOURCE_ID,l,b,ABS(1000./parallax) AS dist_pc, distance_gspphot,parallax,ra,dec,phot_g_mean_mag
-    FROM gaiadr3.gaia_source
-    WHERE SOURCE_ID IN ({source_id_list})
-    AND parallax is not NULL
-    AND parallax > 0
-    """
-    # print(f"coord query:\n{query}")
-    job = Gaia.launch_job_async(query)
-    results = None
-    try:
-        results =  job.get_results()
-    except Exception:
-        print(f"Couldn't retrieve results")
-
-    return results
 
 # Function to query Gaia for stars within 0.25 degrees and 100 parsecs
 # This will batch multiple coordinates into one query
@@ -70,9 +40,7 @@ def query_nearby_stars_batch(center_source_id, coordinates, max_dist_pc: float =
 
     return np.vstack(all_results) if all_results else None
 
-
 g_habstar_by_id_map = {}
-# g_neighbors_by_habstar_id = {}
 
 def main():
     parser = argparse.ArgumentParser(description='Download stars near other stars of interest')
@@ -142,7 +110,6 @@ def main():
             neighbors = neighbors[0]
             n_new_neighbors = len(neighbors)
             total_star_pairs += n_new_neighbors
-            # g_neighbors_by_habstar_id[hab_star_source_id] = neighbors
             for neighbor in neighbors:
                 ang_sep = np.float64(neighbor['ang_sep'])
                 neighbor_gspphot_pc = neighbor['distance_gspphot']
