@@ -64,10 +64,14 @@ def main():
         while True:
             row_dict = next(csv_reader, None)
             if row_dict is not None:
-                hab_list_row_count += 1
                 source_id = row_dict['source_id']
                 source_id = np.uint64(source_id)
-                g_habstar_by_id_map[source_id] = row_dict
+                habstar_radial_dist_pc = np.float64(row_dict['dist_pc'])
+                if habstar_radial_dist_pc <= max_dist_pc:
+                    g_habstar_by_id_map[source_id] = row_dict
+                    hab_list_row_count += 1
+                else:
+                    print(f"skip habstar {source_id} dist_pc: {habstar_radial_dist_pc}")
             else:
                 break
     n_concrete_habitable_stars = hab_list_row_count
@@ -82,6 +86,7 @@ def main():
 
     perf_start_all_neighbors = perf_counter()
     evaluated_hstars_count = 0
+    duplicate_origins_count = 0
     total_star_pairs = 0
     for hab_star_source_id in g_habstar_by_id_map.keys():
         habstar_info = g_habstar_by_id_map[hab_star_source_id]
@@ -98,7 +103,6 @@ def main():
         # Query for all neighbor stars for a single habstar
         neighbors = query_nearby_stars_batch(hab_star_source_id, habstar_raw_coord)
         evaluated_hstars_count += 1
-        duplicate_origins_count = 0
         n_new_neighbors = 0
         if neighbors is not None:
             neighbors = neighbors[0]
@@ -112,9 +116,10 @@ def main():
                 else:
                     neighbor_radial_dist_pc = np.float64(neighbor['dist_pc'])
                 if np.isnan(neighbor_radial_dist_pc):
+                    print(f"bogus neighbor_radial_dist_pc: {neighbor_radial_dist_pc}")
                     neighbor_parallax = np.float64(neighbor['parallax'])
-                    print(f"reprocess parallax {neighbor_parallax} from {neighbor['dist_pc']}")
                     neighbor_radial_dist_pc = 1000.0/neighbor_parallax
+                    print(f"reprocess parallax {neighbor_parallax} from {neighbor['dist_pc']} -> {neighbor_radial_dist_pc}")
 
                 neighbor_id = np.uint64(neighbor['SOURCE_ID'])
                 neighbor_l = np.float64(neighbor['l'])
