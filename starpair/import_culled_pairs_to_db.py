@@ -1,3 +1,9 @@
+"""
+Import starpairs into a database,
+culling pairs where neither node appears
+in a list of habitable star systems
+
+"""
 import csv
 import os
 import sqlite3
@@ -42,8 +48,13 @@ def parse_coordinate_str(coord_str)->(np.float64, np.float64):
 def main():
     parser = argparse.ArgumentParser(description='Convert star pairs to db')
     parser.add_argument('src_path', nargs='?',
+                        # default="./data/galactic_L2e9_r90_d100_0_0_ma250_spairs.csv",
                         default="./data/antigalactic_L2e9_r90_d100_18000_0_ma250_spairs.csv",
                         help="Source data file with `.csv` extension",
+                        )
+    parser.add_argument('-f', dest='hab_path',
+                        default="./tess/tic_to_gaia_mapping.csv",
+                        help="csv habitability catalog file with rows: external ID, gaia source ID",
                         )
     parser.add_argument('-o', dest='outpath', type=str,
                         help='Output path for db')
@@ -51,30 +62,33 @@ def main():
     args = parser.parse_args()
     data_file_name = args.src_path
     basename_sans_ext = os.path.splitext(os.path.basename(data_file_name))[0]
+    filter_file_path = args.hab_path
 
     # Initialize an empty dictionary
-    habcat_map = {}
-    habcat_map_row_count = 0
-    # import the habcat map file
-    with open('./habcat/gaia_dr3_habcat.csv', mode='r') as habcat_map_file:
-        csv_reader = csv.reader(habcat_map_file)
+    habitable_map = {}
+    hab_list_row_count = 0
+    # import the habitable star system list file
+    with open(filter_file_path, mode='r') as hab_list_file:
+        csv_reader = csv.reader(hab_list_file)
         unused_header = next(csv_reader)
-        for habcat_row in csv_reader:
-            habcat_map_row_count += 1
-            gaia_dr3_id, hipparcos_id  = habcat_row
-            habcat_map[gaia_dr3_id] = hipparcos_id
-    print(f"num habcat entries: {habcat_map_row_count} vs {len(habcat_map)}")
-    habcat_map_file = None
-    habcat_row = None
+        for hab_list_row in csv_reader:
+            hab_list_row_count += 1
+            hab_list_uid, gaia_dr3_id, = hab_list_row
+            habitable_map[gaia_dr3_id] = hab_list_uid
+        hab_list_file.close()
+        hab_list_file = None
+        hab_list_row = None
+    print(f"num habitable entries: {hab_list_row_count} vs {len(habitable_map)}")
 
     db_file_path = args.outpath
     if db_file_path is None:
-        db_file_path = f"./data/{basename_sans_ext}_habcat_filt.db"
+        db_file_path = f"./data/{basename_sans_ext}_hab_filt.db"
     print(f"Input: {data_file_name} \nOutput: {db_file_path}")
 
     conn, cursor = open_db(db_file_path)
 
-    habcat_skip_count = 0
+    uninhab_skip_count = 0
+    kept_pairs_count = 0
     # Read CSV and insert data into the table
     with open(data_file_name, 'r') as in_file:
         csv_reader = csv.reader(in_file)
@@ -92,13 +106,14 @@ def main():
             src_id_str = row[6]
             dst_id_str = row[7]
 
-            # cull star pairs that are not in the HabCat list
-            if habcat_map.get(src_id_str) is None and habcat_map.get(dst_id_str) is None:
-                habcat_skip_count += 1
+            # cull star pairs that are not in the habitable list
+            if habitable_map.get(src_id_str) is None and habitable_map.get(dst_id_str) is None:
+                uninhab_skip_count += 1
                 continue
             src_id = np.uint64(src_id_str)
             dst_id = np.uint64(dst_id_str)
 
+            kept_pairs_count += 1
             # Insert the data into the table
             cursor.execute('''
                 INSERT OR IGNORE INTO neighbor_pairs (
@@ -120,7 +135,9 @@ def main():
     # Close the connection
     conn.close()
 
-    print(f"habcat_skip_count {habcat_skip_count} ")
+    print(f"total input star pairs: {kept_pairs_count + uninhab_skip_count}")
+    print(f"uninhab_skip_count {uninhab_skip_count} ")
+    print(f"kept_pairs_count: {kept_pairs_count}")
     print(f"CSV data imported into the SQLite database at: \n{db_file_path}")
 
 if __name__ == "__main__":

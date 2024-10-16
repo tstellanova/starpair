@@ -42,7 +42,8 @@ def parse_coordinate_str(coord_str)->(np.float64, np.float64):
 def main():
     parser = argparse.ArgumentParser(description='Convert star pairs to db')
     parser.add_argument('src_path', nargs='?',
-                        default="./data/antigalactic_L2e9_r90_d100_18000_0_ma250_spairs.csv",
+                        default="./data/galactic_L2e9_r90_d100_0_0_ma250_spairs.csv",
+                        # default="./data/antigalactic_L2e9_r90_d100_18000_0_ma250_spairs.csv",
                         help="Source data file with `.csv` extension",
                         )
     parser.add_argument('-o', dest='outpath', type=str,

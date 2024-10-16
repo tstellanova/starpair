@@ -2,6 +2,7 @@ import csv
 from time import perf_counter
 
 import astropy
+from astropy.table import Table
 from astroquery.gaia import Gaia
 
 input_file = './habcat/habcat_table.csv'  # Your input CSV file
@@ -31,7 +32,7 @@ total_habcat_nodes = len(hipparcos_ids)
 print(f"num HabCat nodes: {total_habcat_nodes}")
 perf_start_adql_query = perf_counter()
 
-merged_table = None
+merged_table:Table = None
 
 while chunk_offset < total_habcat_nodes:
     chunk_limit = min(chunk_offset + chunk_size , total_habcat_nodes)
@@ -60,14 +61,30 @@ while chunk_offset < total_habcat_nodes:
 
     # merged_table: 14192 / 17129
     print(f"merged_table: {len(merged_table)} ")
+
     chunk_offset = chunk_limit
 
 print(f"merged_table: {len(merged_table)} / {total_habcat_nodes} ")
+print(f"ADQL query elapsed: {perf_counter() - perf_start_adql_query } secs")
 
 merged_table.write(output_file, format='ascii.csv', overwrite=True)
 print(f"Output written to {output_file}")
 
+if len(merged_table) < total_habcat_nodes:
+    all_invalid_hip_ids = []
+    all_valid_hip_ids = merged_table['original_ext_source_id']
 
-print(f"ADQL query elapsed: {perf_counter() - perf_start_adql_query } secs")
+    for hip_id in hipparcos_ids:
+        mask = all_valid_hip_ids == hip_id
+        matching_rows = merged_table[mask]
+        if len(matching_rows) == 0:
+            all_invalid_hip_ids.append(hip_id)
+    print(f"num unmatched hip ids: {len(all_invalid_hip_ids)}\n")
+    print(f"{all_invalid_hip_ids}")
+
+
+
+
+
 
 
