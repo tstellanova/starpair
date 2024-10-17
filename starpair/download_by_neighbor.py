@@ -51,7 +51,7 @@ def main():
     Gaia.ROW_LIMIT = int(total_gaia_objects)
     outfile_prefix = f"{out_dir}neighbors_L{total_gaia_objects:0.0e}"
     max_dist_pc = 100
-    max_ang_sep = 0.5
+    max_ang_sep = 1.0
     int_ang_sep = int(1000 * max_ang_sep)
     duplicate_output_filename = f"{outfile_prefix}_a{int_ang_sep}_d{max_dist_pc}.csv"
     unique_origins_output_filename = f"{out_dir}uniquepairs_L{total_gaia_objects:0.0e}_a{int_ang_sep}_d{max_dist_pc}.csv"
