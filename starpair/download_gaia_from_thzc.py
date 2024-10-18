@@ -38,13 +38,15 @@ def main():
     parser = argparse.ArgumentParser(description='Download Gaia info for habitable stars')
     parser.add_argument('-f', dest='hab_path', nargs="?",
                         default="./tess/tess_hab_zone_cat_all.csv",
+                        # default="./tess/tess_hab_zone_cat_d100.csv",
                         help="csv habitability catalog file with rows containing 'Gaia_ID' fields",
                         )
 
     args = parser.parse_args()
     input_habcat_path = args.hab_path
-    basename_sans_ext = os.path.splitext(os.path.basename(input_habcat_path))[0]
-    filtered_outfile_name = f"{basename_sans_ext}_gaia.csv"
+    # basename_sans_ext = os.path.splitext(os.path.basename(input_habcat_path))[0]
+    full_path_sans_ext = os.path.splitext(input_habcat_path)[0]
+    filtered_outfile_name = f"{full_path_sans_ext}_gaia.csv"
 
     print(f"Loading hab stars from: {input_habcat_path} , output to: {filtered_outfile_name}")
     Gaia.ROW_LIMIT = int(2E9)  #overestimate
@@ -58,7 +60,7 @@ def main():
             # note there may be some duplicates, which are ignored
             habitable_map[gaia_id] = gaia_id
 
-    print(f"num raw habitable Gaia sources: {len(habitable_map)}")
+    print(f"Nun unique habitable Gaia sources: {len(habitable_map)}")
 
     # Batch process the source IDs
     batch_size = 1000  # You can adjust the batch size for optimization
