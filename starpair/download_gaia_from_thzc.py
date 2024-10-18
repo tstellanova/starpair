@@ -1,4 +1,5 @@
 import argparse
+import os
 from time import perf_counter
 
 import numpy as np
@@ -8,13 +9,14 @@ from astropy.coordinates import SkyCoord
 import astropy.units as u
 import csv
 
+g_habstar_by_id_map = {}
 
 
 # Function to get the Galactic coordinates (l, b) for a batch of source_ids
 def get_star_info_by_gaia_source_id(source_ids):
     source_id_list = ', '.join(map(str, source_ids))
     query = f"""
-    SELECT SOURCE_ID,l,b,ABS(1000./parallax) AS dist_pc, distance_gspphot,parallax,ra,dec,phot_g_mean_mag
+    SELECT SOURCE_ID,l,b,(1000.0/parallax) AS dist_pc,distance_gspphot,parallax,ra,dec,phot_g_mean_mag
     FROM gaiadr3.gaia_source
     WHERE SOURCE_ID IN ({source_id_list})
     AND parallax is not NULL
@@ -25,50 +27,37 @@ def get_star_info_by_gaia_source_id(source_ids):
     job = Gaia.launch_job_async(query)
     results = None
     try:
-        results =  job.get_results()
+        results = job.get_results()
     except Exception:
         print(f"Couldn't retrieve results")
 
     return results
 
 
-g_habstar_by_id_map = {}
-g_neighbors_by_habstar_id = {}
-
 def main():
-    parser = argparse.ArgumentParser(description='Download stars near other stars of interest')
+    parser = argparse.ArgumentParser(description='Download Gaia info for habitable stars')
     parser.add_argument('-f', dest='hab_path', nargs="?",
-                        default="./tess/tic_to_gaia_mapping.csv",
-                        help="csv habitability catalog file with rows: external ID, gaia source ID",
+                        default="./tess/tess_hab_zone_cat_all.csv",
+                        help="csv habitability catalog file with rows containing 'Gaia_ID' fields",
                         )
-    parser.add_argument('-o', dest='outdir', type=str, default='./data/',
-                        help='Output directory processed files')
 
     args = parser.parse_args()
-    toi_path = args.hab_path
-    out_dir = args.outdir
+    input_habcat_path = args.hab_path
+    basename_sans_ext = os.path.splitext(os.path.basename(input_habcat_path))[0]
+    filtered_outfile_name = f"{basename_sans_ext}_gaia.csv"
 
-    total_gaia_objects = 2E9  #overestimate
-    Gaia.ROW_LIMIT = int(total_gaia_objects)
-    outfile_prefix = f"{out_dir}habstars"
-    filtered_outfile_name = f"{outfile_prefix}_2024_10_15.csv"
-
-    print(f"Loading TOIs from: {toi_path} , output to: {filtered_outfile_name}")
+    print(f"Loading hab stars from: {input_habcat_path} , output to: {filtered_outfile_name}")
+    Gaia.ROW_LIMIT = int(2E9)  #overestimate
 
     # Initialize an empty dictionary
     habitable_map = {}
-    hab_list_row_count = 0
-    # import the habitable star system list file
-    with open(toi_path, mode='r') as hab_list_file:
-        csv_reader = csv.reader(hab_list_file)
-        unused_header = next(csv_reader)
-        for hab_list_row in csv_reader:
-            hab_list_row_count += 1
-            hab_list_uid, gaia_dr3_id, = hab_list_row
-            habitable_map[gaia_dr3_id] = hab_list_uid
-        hab_list_file.close()
-        hab_list_file = None
-        hab_list_row = None
+    with open(input_habcat_path, 'r') as input_file:
+        reader = csv.DictReader(input_file)
+        for row in reader:
+            gaia_id = np.uint64(row['Gaia_ID'])
+            # note there may be some duplicates, which are ignored
+            habitable_map[gaia_id] = gaia_id
+
     print(f"num raw habitable Gaia sources: {len(habitable_map)}")
 
     # Batch process the source IDs
@@ -91,7 +80,7 @@ def main():
 
     # setup the output file
     field_names = ["source_id",
-                   "l","b","dist_pc","distance_gspphot","parallax","ra","dec","phot_g_mean_mag",
+                   "l", "b", "dist_pc", "distance_gspphot", "parallax", "ra", "dec", "phot_g_mean_mag",
                    ]
     file_ref = open(filtered_outfile_name, 'w')
     csv_writer = csv.writer(file_ref)
