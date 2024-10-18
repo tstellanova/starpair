@@ -79,36 +79,6 @@ def create_table_from_csv(db_name, csv_file, table_name, primary_key):
 
 
 
-# def open_db(db_file_path: str):
-#     '''
-#     Connect to SQLite (creates a new database if it doesn't exist)
-#     :param db_file_path: Path to the db file
-#     :return:  db connection, cursor
-#     '''
-#     conn = sqlite3.connect(db_file_path)
-#     cursor = conn.cursor()
-#
-#     # Create a table with the specified fields and composite primary key (src_id, dst_id)
-#     cursor.execute('''
-#         CREATE TABLE IF NOT EXISTS neighbor_pairs (
-#             max_node_dist REAL,
-#             min_node_dist REAL,
-#             ang_sep REAL,
-#             radial_sep REAL,
-#             src_coord_lon REAL,
-#             src_coord_lat REAL,
-#             dst_coord_lon REAL,
-#             dst_coord_lat REAL,
-#             src_id_str TEXT,
-#             dst_id_str TEXT,
-#             src_id INTEGER,
-#             dst_id INTEGER,
-#             PRIMARY KEY (src_id, dst_id)
-#         )
-#     ''')
-#
-#     return conn, cursor
-
 def main():
     parser = argparse.ArgumentParser(description='Import THZC catalog into a sqlite db')
     parser.add_argument('src_path', nargs='?',
