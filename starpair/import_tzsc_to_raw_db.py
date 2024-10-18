@@ -112,8 +112,8 @@ def create_table_from_csv(db_name, csv_file, table_name, primary_key):
 def main():
     parser = argparse.ArgumentParser(description='Import THZC catalog into a sqlite db')
     parser.add_argument('src_path', nargs='?',
-                        default="./tess/tess_hab_zone_cat_all.fits.csv",
-                        # default="./tess/tess_hab_zone_cat_d100.fits.csv",
+                        # default="./tess/tess_hab_zone_cat_all.csv",
+                        default="./tess/tess_hab_zone_cat_d100.csv",
                         help="TESS Hab Zone Catalog file with `.csv` extension",
                         )
     parser.add_argument('-o', dest='outpath', type=str,
