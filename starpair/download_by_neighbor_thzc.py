@@ -37,7 +37,9 @@ def main():
     parser = argparse.ArgumentParser(description='Download stars near other stars of interest')
     parser.add_argument('-f', dest='hab_path', nargs="?",
                         # default="./tess/tess_hab_zone_cat_all_gaia.csv",
-                        default="./tess/tess_hab_zone_cat_d100_gaia.csv",
+                        # default="./tess/tess_hab_zone_cat_d100_gaia.csv",
+                        # default="./tess/tess_hab_zone_cat_d60_gaia.csv",
+                        default="./tess/tess_hab_zone_cat_d30_gaia.csv",
                         help="csv habitability catalog file",
                         )
     parser.add_argument('-o', dest='outdir', type=str, default='./data/',
@@ -51,12 +53,13 @@ def main():
     total_gaia_objects = 2E9  #overestimate
     Gaia.ROW_LIMIT = int(total_gaia_objects)
     outfile_prefix = f"{out_dir}{basename_sans_ext}_nthzc"
-    max_dist_pc = 100
-    max_ang_sep = 0.5
+    max_dist_pc = 30
+    max_ang_sep = 0.25
     int_ang_sep = int(1000 * max_ang_sep)
-    duplicate_output_filename = f"{outfile_prefix}_a{int_ang_sep}_d{max_dist_pc}.csv"
-    unique_origins_output_filename = f"{out_dir}_uniquepairs_L{total_gaia_objects:0.0e}_a{int_ang_sep}_d{max_dist_pc}.csv"
-    double_hab_output_filename = f"{out_dir}_dblhab_L{total_gaia_objects:0.0e}_a{int_ang_sep}_d{max_dist_pc}.csv"
+    outfile_suffix = f"a{int_ang_sep}_d{max_dist_pc}"
+    duplicate_output_filename = f"{outfile_prefix}_{outfile_suffix}.csv"
+    unique_origins_output_filename = f"{outfile_prefix}_uniquepairs_{outfile_suffix}.csv"
+    double_hab_output_filename = f"{outfile_prefix}_dblhab_{outfile_suffix}.csv"
     print(f"Loading TOIs from: {toi_path} , output to: {duplicate_output_filename}")
 
     hab_list_row_count = 0
