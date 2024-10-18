@@ -8,29 +8,28 @@ import csv
 
 # Function to query Gaia for stars within 0.25 degrees and 100 parsecs
 # This will batch multiple coordinates into one query
-def query_nearby_stars_batch(center_source_id, coordinates,
-                             max_dist_pc: float = 100.0,
-                             max_ang_sep: float = 0.25):
-    all_results = []
-    for l, b in coordinates:
-        query = f"""
-        SELECT SOURCE_ID,l,b,  
-            distance_gspphot,parallax,ra,dec,phot_g_mean_mag,
-            DISTANCE( POINT({l},{b}), POINT(l, b)) AS ang_sep,
-            (1000.0/parallax) AS dist_pc
-        FROM gaiadr3.gaia_source
-        WHERE 1 = CONTAINS( POINT({l},{b}), CIRCLE(l, b,{max_ang_sep}))
-        AND SOURCE_ID != {center_source_id}
-        AND parallax is not NULL
-        AND parallax > 0
-        AND 1000.0/parallax <= {max_dist_pc}
-        """
-        # print(f" neighbor query: \n{query}")
-        job = Gaia.launch_job_async(query)
-        results = job.get_results()
-        all_results.append(results)
+def query_nearby_stars(center_source_id,
+                       # center_l, center_b,
+                       center_ra, center_dec,
+                       max_dist_pc: float = 100.0,
+                       max_ang_sep: float = 0.25):
+    query = f"""
+    SELECT SOURCE_ID,l,b,  
+        distance_gspphot,parallax,ra,dec,phot_g_mean_mag,
+        DISTANCE( POINT({center_ra},{center_dec}), POINT(ra, dec)) AS ang_sep,
+        (1000.0/parallax) AS dist_pc
+    FROM gaiadr3.gaia_source
+    WHERE 1 = CONTAINS( POINT(ra,dec), CIRCLE({center_ra},{center_dec},{max_ang_sep}))
+    AND SOURCE_ID != {center_source_id}
+    AND parallax is not NULL
+    AND parallax > 0
+    AND 1000.0/parallax < {max_dist_pc}
+    """
+    # print(f" neighbor query: \n{query}")
+    job = Gaia.launch_job_async(query)
+    results = job.get_results()
+    return results
 
-    return np.vstack(all_results) if all_results else None
 
 g_habstar_by_id_map = {}
 g_origstar_by_id_map = {}
@@ -39,7 +38,7 @@ g_double_hab_list = []
 def main():
     parser = argparse.ArgumentParser(description='Download stars near other stars of interest')
     parser.add_argument('-f', dest='hab_path', nargs="?",
-                        default="./data/habstars_2024_10_15.csv",
+                        default="./tess/tess_hab_zone_cat_d100.fits.csv",
                         help="csv habitability catalog file",
                         )
     parser.add_argument('-o', dest='outdir', type=str, default='./data/',
@@ -51,25 +50,26 @@ def main():
 
     total_gaia_objects = 2E9  #overestimate
     Gaia.ROW_LIMIT = int(total_gaia_objects)
-    outfile_prefix = f"{out_dir}neighbors_L{total_gaia_objects:0.0e}"
+    outfile_prefix = f"{out_dir}thzc_neighbors_L{total_gaia_objects:0.0e}"
     max_dist_pc = 100
-    max_ang_sep = 0.5
+    max_ang_sep = 1.0
     int_ang_sep = int(1000 * max_ang_sep)
     duplicate_output_filename = f"{outfile_prefix}_a{int_ang_sep}_d{max_dist_pc}.csv"
-    unique_origins_output_filename = f"{out_dir}uniquepairs_L{total_gaia_objects:0.0e}_a{int_ang_sep}_d{max_dist_pc}.csv"
-    double_hab_output_filename = f"{out_dir}doublehab_L{total_gaia_objects:0.0e}_a{int_ang_sep}_d{max_dist_pc}.csv"
-    print(f"Loading TOIs from: {toi_path} , output to: {duplicate_output_filename}")
+    unique_origins_output_filename = f"{out_dir}thzc_uniquepairs_L{total_gaia_objects:0.0e}_a{int_ang_sep}_d{max_dist_pc}.csv"
+    double_hab_output_filename = f"{out_dir}thzc_doublehab_L{total_gaia_objects:0.0e}_a{int_ang_sep}_d{max_dist_pc}.csv"
+    print(f"Loading THZC from: {toi_path} , output to: {duplicate_output_filename}")
 
     hab_list_row_count = 0
     # import the habitable star system list file
     with open(toi_path, mode='r') as hab_list_file:
         csv_reader = csv.DictReader(hab_list_file)
         while True:
+            # TIC_ID,Teff,Tmag,r_est,Obs,a_RV,a_EA,a_EM,Per_RV,Per_EA,Per_EM,Elat,Glat,Gaia_ID,RA,Dec,asep_RV,asep_EA,asep_EM,Ttime,TWOMASS,HZ_flag,JWST_flag,Earth_flag,S1_flag,S2_flag,S3_flag,S4_flag,S5_flag,S6_flag,
             row_dict = next(csv_reader, None)
             if row_dict is not None:
-                source_id = row_dict['source_id']
+                source_id = row_dict['Gaia_ID']
                 source_id = np.uint64(source_id)
-                habstar_radial_dist_pc = np.float64(row_dict['dist_pc'])
+                habstar_radial_dist_pc = np.float64(row_dict['r_est'])
                 if habstar_radial_dist_pc <= max_dist_pc:
                     g_habstar_by_id_map[source_id] = row_dict
                     hab_list_row_count += 1
@@ -93,25 +93,28 @@ def main():
     total_star_pairs = 0
     for hab_star_source_id in g_habstar_by_id_map.keys():
         habstar_info = g_habstar_by_id_map[hab_star_source_id]
-        habstar_l = np.float64(habstar_info['l'])
-        habstar_b = np.float64(habstar_info['b'])
-        habstar_raw_coord = [(habstar_l, habstar_b)]
-        habstar_gspphot_pc = habstar_info['distance_gspphot']
-        if habstar_gspphot_pc != '--':
-            habstar_radial_dist_pc = np.float64(habstar_gspphot_pc)
-        else:
-            habstar_radial_dist_pc = np.float64(habstar_info['dist_pc'])
-        habstar_coord_str = f"{habstar_l:0.4f} {habstar_b:0.4f} {habstar_radial_dist_pc:0.4f}"
+        # TIC_ID,Teff,Tmag,r_est,Obs,a_RV,a_EA,a_EM,Per_RV,Per_EA,Per_EM,Elat,Glat,Gaia_ID,RA,Dec,asep_RV,asep_EA,asep_EM,Ttime,TWOMASS,HZ_flag,JWST_flag,Earth_flag,S1_flag,S2_flag,S3_flag,S4_flag,S5_flag,S6_flag,
+        habstar_ra = np.float64(habstar_info['RA'])
+        habstar_dec = np.float64(habstar_info['Dec'])
+        # habstar_l = np.float64(habstar_info['l'])
+        # habstar_b = np.float64(habstar_info['b'])
+        # habstar_raw_coord = [(habstar_l, habstar_b)]
+        # habstar_gspphot_pc = habstar_info['distance_gspphot']
+        # note that r_est is outdated and latest Gaia will have more accurate info
+        habstar_radial_dist_pc = np.float64(habstar_info['r_est'])
+        habstar_coord_str = f"{habstar_ra:0.4f} {habstar_dec:0.4f} {habstar_radial_dist_pc:0.4f}"
 
         # Query for all neighbor stars for a single habstar
-        neighbors = query_nearby_stars_batch(hab_star_source_id,
-                                             habstar_raw_coord,
-                                             max_dist_pc=max_dist_pc,
-                                             max_ang_sep=max_ang_sep)
+        neighbors = query_nearby_stars(hab_star_source_id,
+                                       center_ra=habstar_ra,
+                                       center_dec=habstar_dec,
+                                       # habstar_l, habstar_b,
+                                       max_dist_pc=max_dist_pc,
+                                       max_ang_sep=max_ang_sep)
         evaluated_hstars_count += 1
         n_new_neighbors = 0
         if neighbors is not None:
-            neighbors = neighbors[0]
+            # neighbors = neighbors[0]
             n_new_neighbors = len(neighbors)
             total_star_pairs += n_new_neighbors
             for neighbor in neighbors:
@@ -127,9 +130,11 @@ def main():
                     neighbor_radial_dist_pc = 1000.0/neighbor_parallax
 
                 neighbor_id = np.uint64(neighbor['SOURCE_ID'])
-                neighbor_l = np.float64(neighbor['l'])
-                neighbor_b = np.float64(neighbor['b'])
-                neighbor_coord_str = f"{neighbor_l:0.4f} {neighbor_b:0.4f} {neighbor_radial_dist_pc:0.4f}"
+                neighbor_ra = np.float64(neighbor['ra'])
+                neighbor_dec = np.float64(neighbor['dec'])
+                # neighbor_l = np.float64(neighbor['l'])
+                # neighbor_b = np.float64(neighbor['b'])
+                neighbor_coord_str = f"{neighbor_ra:0.4f} {neighbor_dec:0.4f} {neighbor_radial_dist_pc:0.4f}"
 
                 radial_sep = neighbor_radial_dist_pc - habstar_radial_dist_pc
                 if np.isnan(radial_sep):

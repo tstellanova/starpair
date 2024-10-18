@@ -1,5 +1,5 @@
 """
-Download Gaia source IDs for Tess TIC IDs 
+Download Gaia source IDs for Tess TIC IDs
 """
 import pandas as pd
 from astroquery.mast import Catalogs
