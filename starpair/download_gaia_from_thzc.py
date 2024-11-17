@@ -23,7 +23,8 @@ def get_star_info_by_gaia_source_id(source_ids):
     AND parallax > 0
     """
 
-    # print(f"coord query:\n{query}")
+
+    print(f"coord query:\n{query}")
     job = Gaia.launch_job_async(query)
     results = None
     try:
@@ -37,8 +38,11 @@ def get_star_info_by_gaia_source_id(source_ids):
 def main():
     parser = argparse.ArgumentParser(description='Download Gaia info for habitable stars')
     parser.add_argument('-f', dest='hab_path', nargs="?",
-                        default="./tess/tess_hab_zone_cat_all.csv",
-                        # default="./tess/tess_hab_zone_cat_d100.csv",
+                        # default="./tess/tess_hab_zone_cat_all.csv",
+                        # default="./tess/tess_hab_zone_cat_d20.csv",
+                        default="./tess/tess_hab_zone_cat_d10.csv",
+                        # default="./tess/tess_hab_zone_cat_d30.csv",
+                        # default="./tess/tess_hab_zone_cat_d15.csv",
                         help="csv habitability catalog file with rows containing 'Gaia_ID' fields",
                         )
 
@@ -65,20 +69,30 @@ def main():
     # Batch process the source IDs
     batch_size = 1000  # You can adjust the batch size for optimization
     habstars_id_list = list(habitable_map.keys())
-    for i in range(0, len(habstars_id_list), batch_size):
+    n_habstar_ids = len(habstars_id_list)
+    print(f"Num habstar IDs: {n_habstar_ids}")
+    n_missing_ids = 0
+    for i in range(0, n_habstar_ids, batch_size):
         batch = habstars_id_list[i:i + batch_size]
 
         # Step 1: Get galactic coordinates for the batch of source IDs
         habstars_batch = get_star_info_by_gaia_source_id(batch)
 
         if len(habstars_batch) > 0:
-            print(f"Got {len(habstars_batch)} habstars for {len(batch)} requested")
+            n_missing_ids = n_habstar_ids - len(habstars_batch)
+            print(f"Got {len(habstars_batch)} habstars for {len(batch)} requested: {n_missing_ids} missing")
             for habstar_info in habstars_batch:
                 orig_source_id = np.uint64(habstar_info['SOURCE_ID'])
+                existing_gaia_habstar = g_habstar_by_id_map.get(orig_source_id)
+                if existing_gaia_habstar is not None:
+                    print(f"!! Duplicate gaia habstar id {orig_source_id} \nwas: {existing_gaia_habstar} \nnew: {habstar_info}")
                 g_habstar_by_id_map[orig_source_id] = habstar_info
 
     n_concrete_habitable_stars = len(g_habstar_by_id_map)
     print(f"n_concrete_habitable_stars: {n_concrete_habitable_stars}")
+    if n_missing_ids > 0:
+        only_in_thzc_list = habitable_map.keys() - g_habstar_by_id_map.keys()
+        print(f"Missing keys from THZC: {only_in_thzc_list}")
 
     # setup the output file
     field_names = ["source_id",
@@ -92,6 +106,12 @@ def main():
     row_count = 0
     for hab_star_source_id in g_habstar_by_id_map.keys():
         habstar_info = g_habstar_by_id_map[hab_star_source_id]
+        # actual_parallax = habstar_info['parallax']
+        # actual_dist_pc = np.float64(1000.0) / np.float64(actual_parallax)
+        # prior_dist_pc = np.float64(habstar_info['dist_pc'])
+        # dist_diff = np.abs(actual_dist_pc - prior_dist_pc)
+        # if dist_diff > 0:
+        #     print(f"dist_diff too large: {dist_diff}")
         csv_writer.writerow(habstar_info)
         row_count += 1
 

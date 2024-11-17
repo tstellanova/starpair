@@ -97,6 +97,7 @@ def main():
         habstar_b = np.float64(habstar_info['b'])
         habstar_raw_coord = [(habstar_l, habstar_b)]
         habstar_gspphot_pc = habstar_info['distance_gspphot']
+        if
         if habstar_gspphot_pc != '--':
             habstar_radial_dist_pc = np.float64(habstar_gspphot_pc)
         else:

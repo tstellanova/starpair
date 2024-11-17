@@ -7,7 +7,7 @@ from astroquery.gaia import Gaia
 import csv
 
 
-# Function to query Gaia for stars within 0.25 degrees and 100 parsecs
+# Function to query Gaia for stars within some number of degrees and some radial distance
 # This will batch multiple coordinates into one query
 def query_nearby_stars(center_source_id, center_l, center_b,
                              max_dist_pc: float = 100.0,
@@ -40,6 +40,10 @@ def main():
                         # default="./tess/tess_hab_zone_cat_d100_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d60_gaia.csv",
                         default="./tess/tess_hab_zone_cat_d30_gaia.csv",
+                        # default="./tess/tess_hab_zone_cat_d20_gaia.csv",
+                        # default="./tess/tess_hab_zone_cat_d10_gaia.csv",
+                        # default="./tess/tess_hab_zone_cat_d15_gaia.csv",
+
                         help="csv habitability catalog file",
                         )
     parser.add_argument('-o', dest='outdir', type=str, default='./data/',
@@ -54,7 +58,7 @@ def main():
     Gaia.ROW_LIMIT = int(total_gaia_objects)
     outfile_prefix = f"{out_dir}{basename_sans_ext}_nthzc"
     max_dist_pc = 30
-    max_ang_sep = 0.25
+    max_ang_sep = 0.125
     int_ang_sep = int(1000 * max_ang_sep)
     outfile_suffix = f"a{int_ang_sep}_d{max_dist_pc}"
     duplicate_output_filename = f"{outfile_prefix}_{outfile_suffix}.csv"
@@ -97,10 +101,11 @@ def main():
         habstar_info = g_habstar_by_id_map[hab_star_source_id]
         habstar_l = np.float64(habstar_info['l'])
         habstar_b = np.float64(habstar_info['b'])
-        habstar_raw_coord = [(habstar_l, habstar_b)]
-        habstar_gspphot_pc = habstar_info['distance_gspphot']
-        if habstar_gspphot_pc != '--':
-            habstar_radial_dist_pc = np.float64(habstar_gspphot_pc)
+        habstar_radial_dist_pc = np.nan
+        # habstar_raw_coord = [(habstar_l, habstar_b)]
+        # habstar_gspphot_pc = habstar_info['distance_gspphot']
+        # if habstar_gspphot_pc != '--':
+        #     habstar_radial_dist_pc = np.float64(habstar_gspphot_pc)
 
         if np.isnan(habstar_radial_dist_pc):
             habstar_radial_dist_pc = np.float64(habstar_info['dist_pc'])
@@ -118,16 +123,14 @@ def main():
             n_new_neighbors = len(neighbors)
             total_star_pairs += n_new_neighbors
             for neighbor in neighbors:
-                ang_sep = np.float64(neighbor['ang_sep'])
-                neighbor_gspphot_pc = neighbor['distance_gspphot']
                 neighbor_radial_dist_pc = np.nan
-                if neighbor_gspphot_pc != '--':
-                    neighbor_radial_dist_pc = np.float64(neighbor_gspphot_pc)
-                if np.isnan(neighbor_radial_dist_pc):
-                    neighbor_radial_dist_pc = np.float64(neighbor['dist_pc'])
-                    if np.isnan(neighbor_radial_dist_pc):
-                        neighbor_parallax = np.float64(neighbor['parallax'])
-                        neighbor_radial_dist_pc = 1000.0/neighbor_parallax
+                ang_sep = np.float64(neighbor['ang_sep'])
+                # neighbor_gspphot_pc = neighbor['distance_gspphot']
+                # if neighbor_gspphot_pc != '--':
+                #     neighbor_gspphot_pc = np.float64(neighbor_gspphot_pc)
+
+                neighbor_parallax = np.float64(neighbor['parallax'])
+                neighbor_radial_dist_pc = 1000.0/neighbor_parallax
 
                 neighbor_id = np.uint64(neighbor['SOURCE_ID'])
                 neighbor_l = np.float64(neighbor['l'])
@@ -135,6 +138,7 @@ def main():
                 neighbor_coord_str = f"{neighbor_l:0.4f} {neighbor_b:0.4f} {neighbor_radial_dist_pc:0.4f}"
 
                 radial_sep = neighbor_radial_dist_pc - habstar_radial_dist_pc
+                print(f"radial_sep: {radial_sep} neighb_rd: {neighbor_radial_dist_pc} habstar_rd: {habstar_radial_dist_pc}")
                 if np.isnan(radial_sep):
                     print(f"{neighbor_id} bad sep: {neighbor_radial_dist_pc} - {habstar_radial_dist_pc}")
                 if radial_sep > 0:
