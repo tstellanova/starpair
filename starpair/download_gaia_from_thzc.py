@@ -16,7 +16,7 @@ g_habstar_by_id_map = {}
 def get_star_info_by_gaia_source_id(source_ids):
     source_id_list = ', '.join(map(str, source_ids))
     query = f"""
-    SELECT SOURCE_ID,l,b,(1000.0/parallax) AS dist_pc,distance_gspphot,parallax,ra,dec,phot_g_mean_mag
+    SELECT SOURCE_ID,l,b,parallax,(1000.0/parallax) AS dist_pc,ruwe,phot_g_mean_mag
     FROM gaiadr3.gaia_source
     WHERE SOURCE_ID IN ({source_id_list})
     AND parallax is not NULL
@@ -38,17 +38,15 @@ def get_star_info_by_gaia_source_id(source_ids):
 def main():
     parser = argparse.ArgumentParser(description='Download Gaia info for habitable stars')
     parser.add_argument('-f', dest='hab_path', nargs="?",
-                        # default="./tess/tess_hab_zone_cat_all.csv",
-                        # default="./tess/tess_hab_zone_cat_d20.csv",
-                        default="./tess/tess_hab_zone_cat_d10.csv",
-                        # default="./tess/tess_hab_zone_cat_d30.csv",
+                        # default="./tess/tess_hab_zone_cat_d10.csv",
                         # default="./tess/tess_hab_zone_cat_d15.csv",
+                        # default="./tess/tess_hab_zone_cat_d20.csv",
+                        default="./tess/tess_hab_zone_cat_d30.csv",
                         help="csv habitability catalog file with rows containing 'Gaia_ID' fields",
                         )
 
     args = parser.parse_args()
     input_habcat_path = args.hab_path
-    # basename_sans_ext = os.path.splitext(os.path.basename(input_habcat_path))[0]
     full_path_sans_ext = os.path.splitext(input_habcat_path)[0]
     filtered_outfile_name = f"{full_path_sans_ext}_gaia.csv"
 
@@ -92,11 +90,11 @@ def main():
     print(f"n_concrete_habitable_stars: {n_concrete_habitable_stars}")
     if n_missing_ids > 0:
         only_in_thzc_list = habitable_map.keys() - g_habstar_by_id_map.keys()
-        print(f"Missing keys from THZC: {only_in_thzc_list}")
+        print(f"Missing THZC DR2 IDs in DR3: {only_in_thzc_list}")
 
     # setup the output file
     field_names = ["source_id",
-                   "l", "b", "dist_pc", "distance_gspphot", "parallax", "ra", "dec", "phot_g_mean_mag",
+                   "l", "b", "parallax", "dist_pc", "ruwe", "phot_g_mean_mag",
                    ]
     file_ref = open(filtered_outfile_name, 'w')
     csv_writer = csv.writer(file_ref)
@@ -106,12 +104,6 @@ def main():
     row_count = 0
     for hab_star_source_id in g_habstar_by_id_map.keys():
         habstar_info = g_habstar_by_id_map[hab_star_source_id]
-        # actual_parallax = habstar_info['parallax']
-        # actual_dist_pc = np.float64(1000.0) / np.float64(actual_parallax)
-        # prior_dist_pc = np.float64(habstar_info['dist_pc'])
-        # dist_diff = np.abs(actual_dist_pc - prior_dist_pc)
-        # if dist_diff > 0:
-        #     print(f"dist_diff too large: {dist_diff}")
         csv_writer.writerow(habstar_info)
         row_count += 1
 

@@ -12,11 +12,12 @@ import csv
 def query_nearby_stars(center_source_id, center_l, center_b,
                              max_dist_pc: float = 100.0,
                              max_ang_sep: float = 0.25):
+
+    #     SELECT SOURCE_ID,l,b,(1000.0/parallax) AS dist_pc,parallax,ruwe,phot_g_mean_mag
     query = f"""
-    SELECT SOURCE_ID,l,b,  
-        distance_gspphot,parallax,ra,dec,phot_g_mean_mag,
-        DISTANCE( POINT({center_l},{center_b}), POINT(l, b)) AS ang_sep,
-        (1000.0/parallax) AS dist_pc
+    SELECT SOURCE_ID,l,b,
+        (1000.0/parallax) AS dist_pc,parallax,ruwe,phot_g_mean_mag,
+        DISTANCE( POINT({center_l},{center_b}), POINT(l, b)) AS ang_sep
     FROM gaiadr3.gaia_source
     WHERE 1 = CONTAINS( POINT(l,b), CIRCLE({center_l},{center_b},{max_ang_sep}))
     AND SOURCE_ID != {center_source_id}
@@ -41,8 +42,8 @@ def main():
                         # default="./tess/tess_hab_zone_cat_d60_gaia.csv",
                         default="./tess/tess_hab_zone_cat_d30_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d20_gaia.csv",
-                        # default="./tess/tess_hab_zone_cat_d10_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d15_gaia.csv",
+                        # default="./tess/tess_hab_zone_cat_d10_gaia.csv",
 
                         help="csv habitability catalog file",
                         )
@@ -58,7 +59,7 @@ def main():
     Gaia.ROW_LIMIT = int(total_gaia_objects)
     outfile_prefix = f"{out_dir}{basename_sans_ext}_nthzc"
     max_dist_pc = 30
-    max_ang_sep = 0.125
+    max_ang_sep = 1.25
     int_ang_sep = int(1000 * max_ang_sep)
     outfile_suffix = f"a{int_ang_sep}_d{max_dist_pc}"
     duplicate_output_filename = f"{outfile_prefix}_{outfile_suffix}.csv"
@@ -101,16 +102,9 @@ def main():
         habstar_info = g_habstar_by_id_map[hab_star_source_id]
         habstar_l = np.float64(habstar_info['l'])
         habstar_b = np.float64(habstar_info['b'])
-        habstar_radial_dist_pc = np.nan
-        # habstar_raw_coord = [(habstar_l, habstar_b)]
-        # habstar_gspphot_pc = habstar_info['distance_gspphot']
-        # if habstar_gspphot_pc != '--':
-        #     habstar_radial_dist_pc = np.float64(habstar_gspphot_pc)
-
-        if np.isnan(habstar_radial_dist_pc):
-            habstar_radial_dist_pc = np.float64(habstar_info['dist_pc'])
+        habstar_radial_dist_pc = np.float64(habstar_info['dist_pc'])
         habstar_coord_str = f"{habstar_l:0.4f} {habstar_b:0.4f} {habstar_radial_dist_pc:0.4f}"
-
+        habstar_ruwe = np.float64(habstar_info['ruwe'])
         # Query for all neighbor stars for a single habstar
         neighbors = query_nearby_stars(hab_star_source_id,
                                        center_l=habstar_l,center_b=habstar_b,
@@ -119,18 +113,16 @@ def main():
         evaluated_hstars_count += 1
         n_new_neighbors = 0
         if neighbors is not None:
-            # neighbors = neighbors[0]
             n_new_neighbors = len(neighbors)
             total_star_pairs += n_new_neighbors
             for neighbor in neighbors:
-                neighbor_radial_dist_pc = np.nan
                 ang_sep = np.float64(neighbor['ang_sep'])
-                # neighbor_gspphot_pc = neighbor['distance_gspphot']
-                # if neighbor_gspphot_pc != '--':
-                #     neighbor_gspphot_pc = np.float64(neighbor_gspphot_pc)
-
                 neighbor_parallax = np.float64(neighbor['parallax'])
-                neighbor_radial_dist_pc = 1000.0/neighbor_parallax
+                neighbor_radial_dist_pc = np.float64(neighbor['dist_pc'])
+                check_neighb_dist_pc = np.float64(1000.0 / neighbor_parallax)
+                if neighbor_radial_dist_pc != check_neighb_dist_pc:
+                    print(f"ADQL neighb dist_pc: {neighbor_radial_dist_pc} calculated: {check_neighb_dist_pc}")
+                    neighbor_radial_dist_pc = check_neighb_dist_pc
 
                 neighbor_id = np.uint64(neighbor['SOURCE_ID'])
                 neighbor_l = np.float64(neighbor['l'])
@@ -138,9 +130,13 @@ def main():
                 neighbor_coord_str = f"{neighbor_l:0.4f} {neighbor_b:0.4f} {neighbor_radial_dist_pc:0.4f}"
 
                 radial_sep = neighbor_radial_dist_pc - habstar_radial_dist_pc
-                print(f"radial_sep: {radial_sep} neighb_rd: {neighbor_radial_dist_pc} habstar_rd: {habstar_radial_dist_pc}")
                 if np.isnan(radial_sep):
                     print(f"{neighbor_id} bad sep: {neighbor_radial_dist_pc} - {habstar_radial_dist_pc}")
+                print(f"radial_sep: {radial_sep} neighb_rd: {neighbor_radial_dist_pc} habstar_rd: {habstar_radial_dist_pc}")
+
+                neighbor_ruwe = np.float64(neighbor['ruwe'])
+                print(f"habstar ruwe: {habstar_ruwe} neighb ruwe: {neighbor_ruwe}")
+
                 if radial_sep > 0:
                     origin_id = neighbor_id
                     dest_id = hab_star_source_id
@@ -161,7 +157,7 @@ def main():
 
                 double_hab_info = g_habstar_by_id_map.get(neighbor_id)
                 if double_hab_info is not None:
-                    print(f"double hab! {origin_id} -> {dest_id} radial_sep: {radial_sep} ang_sep: {ang_sep}")
+                    print(f"double hab! {origin_id} > {dest_id} radial_sep: {radial_sep} ang_sep: {ang_sep}")
                     g_double_hab_list.append(out_row)
 
                 existing_orig = g_origstar_by_id_map.get(origin_id)
@@ -169,14 +165,17 @@ def main():
                     g_origstar_by_id_map[origin_id] = out_row
                 else:
                     duplicate_origins_count += 1
+                    #out_row = (origin_id, dest_id, origin_dist, dest_dist, ang_sep, radial_sep, origin_coord, dest_coord)
+                    existing_dest_id = existing_orig[1]
                     existing_radial_sep = existing_orig[5]
-                    if radial_sep > 0.5 and radial_sep < existing_radial_sep:
-                        g_origstar_by_id_map[origin_id] = out_row
-                        print(f"{duplicate_origins_count} dup orig: {origin_id} -> dest: {dest_id} rsep new: {radial_sep} old: {existing_radial_sep}")
+                    if existing_radial_sep != radial_sep:
+                        print(f"existing  origin: {origin_id} destination: {existing_dest_id}  radial_sep: {existing_radial_sep:0.4f}")
+                        print(f"new origin: {origin_id} destination: {dest_id}  radial_sep: {radial_sep:0.4f}")
 
             file_ref.flush()
 
-        print(f"{evaluated_hstars_count}/{n_concrete_habitable_stars} {hab_star_source_id} has: {n_new_neighbors} neighbors")
+        if n_new_neighbors > 0:
+            print(f"{evaluated_hstars_count}/{n_concrete_habitable_stars} {hab_star_source_id} has: {n_new_neighbors}")
 
     file_ref.flush()
     file_ref.close()
