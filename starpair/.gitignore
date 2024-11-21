@@ -1,4 +1,6 @@
 .DS_Store
 *.gz
 *.fits
+*.db-shm
+*.db-wal
 

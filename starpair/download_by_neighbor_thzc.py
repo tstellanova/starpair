@@ -1,7 +1,7 @@
 import argparse
 import os
 from time import perf_counter
-
+import re
 import numpy as np
 from astroquery.gaia import Gaia
 import csv
@@ -10,8 +10,11 @@ import csv
 # Function to query Gaia for stars within some number of degrees and some radial distance
 # This will batch multiple coordinates into one query
 def query_nearby_stars(center_source_id, center_l, center_b,
-                             max_dist_pc: float = 100.0,
-                             max_ang_sep: float = 0.25):
+                       center_dpc,
+                       max_dist_pc: float = 100.0,
+                       max_ang_sep: float = 0.25,
+                       min_radial_sep: float = 0,
+                       max_radial_sep: float = 100.0):
 
     #     SELECT SOURCE_ID,l,b,(1000.0/parallax) AS dist_pc,parallax,ruwe,phot_g_mean_mag
     query = f"""
@@ -23,7 +26,8 @@ def query_nearby_stars(center_source_id, center_l, center_b,
     AND SOURCE_ID != {center_source_id}
     AND parallax is not NULL
     AND parallax > 0
-    AND 1000.0/parallax <= {max_dist_pc}
+    AND 1000.0/parallax < {max_dist_pc}
+    AND ABS(1000.0/parallax - {center_dpc}) BETWEEN {min_radial_sep} AND {max_radial_sep}
     """
     # print(f" neighbor query: \n{query}")
     job = Gaia.launch_job_async(query)
@@ -40,9 +44,9 @@ def main():
                         # default="./tess/tess_hab_zone_cat_all_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d100_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d60_gaia.csv",
-                        default="./tess/tess_hab_zone_cat_d30_gaia.csv",
+                        # default="./tess/tess_hab_zone_cat_d30_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d20_gaia.csv",
-                        # default="./tess/tess_hab_zone_cat_d15_gaia.csv",
+                        default="./tess/tess_hab_zone_cat_d15_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d10_gaia.csv",
 
                         help="csv habitability catalog file",
@@ -55,13 +59,21 @@ def main():
     out_dir = args.outdir
     basename_sans_ext = os.path.splitext(os.path.basename(toi_path))[0]
 
+    max_dist_pc = 40
+    match = re.search(r'_d(\d+)', basename_sans_ext)
+    if match:
+        number = int(match.group(1))
+        max_dist_pc = number
+
+    outfile_prefix = f"{out_dir}gaia_nthzc_d{max_dist_pc}"
+
     total_gaia_objects = 2E9  #overestimate
     Gaia.ROW_LIMIT = int(total_gaia_objects)
-    outfile_prefix = f"{out_dir}{basename_sans_ext}_nthzc"
-    max_dist_pc = 30
+    max_radial_sep = 5 # parsecs
+    min_radial_sep = 0.5 # parsecs
     max_ang_sep = 1.25
     int_ang_sep = int(1000 * max_ang_sep)
-    outfile_suffix = f"a{int_ang_sep}_d{max_dist_pc}"
+    outfile_suffix = f"a{int_ang_sep}_d{max_dist_pc}_mi{int(round(100*min_radial_sep))}_mx{int(round(100*max_radial_sep))}"
     duplicate_output_filename = f"{outfile_prefix}_{outfile_suffix}.csv"
     unique_origins_output_filename = f"{outfile_prefix}_uniquepairs_{outfile_suffix}.csv"
     double_hab_output_filename = f"{outfile_prefix}_dblhab_{outfile_suffix}.csv"
@@ -88,7 +100,9 @@ def main():
     print(f"Num selected habitable stars: {hab_list_row_count}")
 
     # setup the output file
-    field_names = ["orig_id","dest_id","orig_dist","dest_dist","ang_sep","radial_sep","orig_coord","dest_coord"]
+    # field_names = ["orig_id","dest_id","orig_dist","dest_dist","ang_sep","radial_sep","orig_coord","dest_coord"]
+    field_names = ["orig_id","dest_id","orig_dist","radial_sep","true_interstellar","comment", "ang_sep","dest_dist","orig_coord","dest_coord"]
+
     file_ref = open(duplicate_output_filename, 'w')
     csv_writer = csv.writer(file_ref)
     csv_writer.writerow(field_names)
@@ -108,8 +122,11 @@ def main():
         # Query for all neighbor stars for a single habstar
         neighbors = query_nearby_stars(hab_star_source_id,
                                        center_l=habstar_l,center_b=habstar_b,
+                                       center_dpc=habstar_radial_dist_pc,
                                        max_dist_pc=max_dist_pc,
-                                       max_ang_sep=max_ang_sep)
+                                       max_ang_sep=max_ang_sep,
+                                       min_radial_sep=min_radial_sep,
+                                       max_radial_sep=max_radial_sep)
         evaluated_hstars_count += 1
         n_new_neighbors = 0
         if neighbors is not None:
@@ -152,7 +169,10 @@ def main():
                     origin_coord = habstar_coord_str
                     dest_coord = neighbor_coord_str
                 radial_sep = np.abs(radial_sep)
-                out_row = (origin_id, dest_id, origin_dist, dest_dist, ang_sep, radial_sep, origin_coord, dest_coord)
+                # out_row = (origin_id, dest_id, origin_dist, dest_dist, ang_sep, radial_sep, origin_coord, dest_coord)
+                out_row = (origin_id, dest_id, origin_dist, radial_sep, 0, "", ang_sep, dest_dist, origin_coord, dest_coord)
+                #  ["orig_id","dest_id","orig_dist","radial_sep","true_interstellar","comment", "ang_sep","dest_dist","orig_coord","dest_coord"]
+
                 csv_writer.writerow(out_row)
 
                 double_hab_info = g_habstar_by_id_map.get(neighbor_id)
@@ -165,12 +185,13 @@ def main():
                     g_origstar_by_id_map[origin_id] = out_row
                 else:
                     duplicate_origins_count += 1
-                    #out_row = (origin_id, dest_id, origin_dist, dest_dist, ang_sep, radial_sep, origin_coord, dest_coord)
                     existing_dest_id = existing_orig[1]
-                    existing_radial_sep = existing_orig[5]
+                    existing_radial_sep = existing_orig[3]
                     if existing_radial_sep != radial_sep:
                         print(f"existing  origin: {origin_id} destination: {existing_dest_id}  radial_sep: {existing_radial_sep:0.4f}")
-                        print(f"new origin: {origin_id} destination: {dest_id}  radial_sep: {radial_sep:0.4f}")
+                        if radial_sep < existing_radial_sep:
+                            print(f"new origin: {origin_id} destination: {dest_id}  radial_sep: {radial_sep:0.4f}")
+                            g_origstar_by_id_map[origin_id] = out_row
 
             file_ref.flush()
 
@@ -188,7 +209,6 @@ def main():
     if n_unique_origins > 0:
         print(f"Total unique origins: {n_unique_origins}")
         # Now write condensed info with unique origin IDs to a separate file
-        # field_names = ["orig_id","dest_id","orig_dist","dest_dist","ang_sep","radial_sep","orig_coord","dest_coord"]
         with open(unique_origins_output_filename, mode='w') as file_ref:
             csv_writer = csv.writer(file_ref)
             csv_writer.writerow(field_names)
