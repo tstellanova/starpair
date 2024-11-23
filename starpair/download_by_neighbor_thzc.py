@@ -46,8 +46,9 @@ def main():
                         # default="./tess/tess_hab_zone_cat_d60_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d30_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d20_gaia.csv",
-                        default="./tess/tess_hab_zone_cat_d15_gaia.csv",
+                        # default="./tess/tess_hab_zone_cat_d15_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d10_gaia.csv",
+                        default="./tess/tess_hab_zone_cat_d5_gaia.csv",
 
                         help="csv habitability catalog file",
                         )
@@ -59,23 +60,27 @@ def main():
     out_dir = args.outdir
     basename_sans_ext = os.path.splitext(os.path.basename(toi_path))[0]
 
+    max_radial_sep = 10 # parsecs
     max_dist_pc = 40
+    hab_max_dist_pc = np.nan
     match = re.search(r'_d(\d+)', basename_sans_ext)
     if match:
-        number = int(match.group(1))
-        max_dist_pc = number
+        hab_max_dist_pc = int(match.group(1))
 
-    outfile_prefix = f"{out_dir}gaia_nthzc_d{max_dist_pc}"
+    if not np.isnan(hab_max_dist_pc):
+        max_dist_pc = hab_max_dist_pc + max_radial_sep
+
+    outfile_prefix = f"{out_dir}gaia_nthzc_d{hab_max_dist_pc}"
+
 
     total_gaia_objects = 2E9  #overestimate
     Gaia.ROW_LIMIT = int(total_gaia_objects)
-    max_radial_sep = 5 # parsecs
-    min_radial_sep = 0.5 # parsecs
-    max_ang_sep = 1.25
+    min_radial_sep = 0.3 # parsecs -- greater than 60E3 AU
+    max_ang_sep = 1.00
     int_ang_sep = int(1000 * max_ang_sep)
     outfile_suffix = f"a{int_ang_sep}_d{max_dist_pc}_mi{int(round(100*min_radial_sep))}_mx{int(round(100*max_radial_sep))}"
-    duplicate_output_filename = f"{outfile_prefix}_{outfile_suffix}.csv"
-    unique_origins_output_filename = f"{outfile_prefix}_uniquepairs_{outfile_suffix}.csv"
+    duplicate_output_filename = f"{outfile_prefix}_raw_{outfile_suffix}.csv"
+    unique_origins_output_filename = f"{outfile_prefix}_{outfile_suffix}.csv"
     double_hab_output_filename = f"{outfile_prefix}_dblhab_{outfile_suffix}.csv"
     print(f"Loading TOIs from: {toi_path} , output to: {duplicate_output_filename}")
 
@@ -89,7 +94,7 @@ def main():
                 source_id = row_dict['source_id']
                 source_id = np.uint64(source_id)
                 habstar_radial_dist_pc = np.float64(row_dict['dist_pc'])
-                if habstar_radial_dist_pc <= max_dist_pc:
+                if habstar_radial_dist_pc <= hab_max_dist_pc:
                     g_habstar_by_id_map[source_id] = row_dict
                     hab_list_row_count += 1
                 else:
@@ -195,8 +200,7 @@ def main():
 
             file_ref.flush()
 
-        if n_new_neighbors > 0:
-            print(f"{evaluated_hstars_count}/{n_concrete_habitable_stars} {hab_star_source_id} has: {n_new_neighbors}")
+        print(f"{evaluated_hstars_count}/{n_concrete_habitable_stars} {hab_star_source_id} has: {n_new_neighbors}")
 
     file_ref.flush()
     file_ref.close()

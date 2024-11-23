@@ -16,7 +16,7 @@ g_habstar_by_id_map = {}
 def get_star_info_by_gaia_source_id(source_ids):
     source_id_list = ', '.join(map(str, source_ids))
     query = f"""
-    SELECT SOURCE_ID,l,b,parallax,(1000.0/parallax) AS dist_pc,ruwe,phot_g_mean_mag
+    SELECT SOURCE_ID,l,b,parallax,(1000.0/parallax) AS dist_pc,ruwe,phot_g_mean_mag,distance_gspphot
     FROM gaiadr3.gaia_source
     WHERE SOURCE_ID IN ({source_id_list})
     AND parallax is not NULL
@@ -38,10 +38,11 @@ def get_star_info_by_gaia_source_id(source_ids):
 def main():
     parser = argparse.ArgumentParser(description='Download Gaia info for habitable stars')
     parser.add_argument('-f', dest='hab_path', nargs="?",
+                        default="./tess/tess_hab_zone_cat_d5.csv",
                         # default="./tess/tess_hab_zone_cat_d10.csv",
                         # default="./tess/tess_hab_zone_cat_d15.csv",
                         # default="./tess/tess_hab_zone_cat_d20.csv",
-                        default="./tess/tess_hab_zone_cat_d30.csv",
+                        # default="./tess/tess_hab_zone_cat_d30.csv",
                         help="csv habitability catalog file with rows containing 'Gaia_ID' fields",
                         )
 
@@ -94,7 +95,7 @@ def main():
 
     # setup the output file
     field_names = ["source_id",
-                   "l", "b", "parallax", "dist_pc", "ruwe", "phot_g_mean_mag",
+                   "l", "b", "parallax", "dist_pc", "ruwe", "phot_g_mean_mag","distance_gspphot"
                    ]
     file_ref = open(filtered_outfile_name, 'w')
     csv_writer = csv.writer(file_ref)
