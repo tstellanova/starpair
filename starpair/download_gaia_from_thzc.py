@@ -24,7 +24,7 @@ def get_star_info_by_gaia_source_id(source_ids):
     """
 
 
-    print(f"coord query:\n{query}")
+    # print(f"coord query:\n{query}")
     job = Gaia.launch_job_async(query)
     results = None
     try:
@@ -38,11 +38,12 @@ def get_star_info_by_gaia_source_id(source_ids):
 def main():
     parser = argparse.ArgumentParser(description='Download Gaia info for habitable stars')
     parser.add_argument('-f', dest='hab_path', nargs="?",
-                        default="./tess/tess_hab_zone_cat_d5.csv",
+                        # default="./tess/tess_hab_zone_cat_d5.csv",
                         # default="./tess/tess_hab_zone_cat_d10.csv",
                         # default="./tess/tess_hab_zone_cat_d15.csv",
                         # default="./tess/tess_hab_zone_cat_d20.csv",
                         # default="./tess/tess_hab_zone_cat_d30.csv",
+                        default="./tess/tess_hab_zone_cat_all.csv",
                         help="csv habitability catalog file with rows containing 'Gaia_ID' fields",
                         )
 
@@ -66,7 +67,7 @@ def main():
     print(f"Nun unique habitable Gaia sources: {len(habitable_map)}")
 
     # Batch process the source IDs
-    batch_size = 1000  # You can adjust the batch size for optimization
+    batch_size = 2000  # You can adjust the batch size for optimization
     habstars_id_list = list(habitable_map.keys())
     n_habstar_ids = len(habstars_id_list)
     print(f"Num habstar IDs: {n_habstar_ids}")

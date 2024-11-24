@@ -41,14 +41,14 @@ g_double_hab_list = []
 def main():
     parser = argparse.ArgumentParser(description='Download stars near other stars of interest')
     parser.add_argument('-f', dest='hab_path', nargs="?",
-                        # default="./tess/tess_hab_zone_cat_all_gaia.csv",
+                        default="./tess/tess_hab_zone_cat_all_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d100_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d60_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d30_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d20_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d15_gaia.csv",
                         # default="./tess/tess_hab_zone_cat_d10_gaia.csv",
-                        default="./tess/tess_hab_zone_cat_d5_gaia.csv",
+                        # default="./tess/tess_hab_zone_cat_d5_gaia.csv",
 
                         help="csv habitability catalog file",
                         )
@@ -61,22 +61,21 @@ def main():
     basename_sans_ext = os.path.splitext(os.path.basename(toi_path))[0]
 
     max_radial_sep = 10 # parsecs
-    max_dist_pc = 40
     hab_max_dist_pc = np.nan
     match = re.search(r'_d(\d+)', basename_sans_ext)
     if match:
         hab_max_dist_pc = int(match.group(1))
+    else:
+        hab_max_dist_pc = 20
 
-    if not np.isnan(hab_max_dist_pc):
-        max_dist_pc = hab_max_dist_pc + max_radial_sep
-
+    max_dist_pc = hab_max_dist_pc + max_radial_sep
     outfile_prefix = f"{out_dir}gaia_nthzc_d{hab_max_dist_pc}"
 
 
     total_gaia_objects = 2E9  #overestimate
     Gaia.ROW_LIMIT = int(total_gaia_objects)
     min_radial_sep = 0.3 # parsecs -- greater than 60E3 AU
-    max_ang_sep = 1.00
+    max_ang_sep = 1.25
     int_ang_sep = int(1000 * max_ang_sep)
     outfile_suffix = f"a{int_ang_sep}_d{max_dist_pc}_mi{int(round(100*min_radial_sep))}_mx{int(round(100*max_radial_sep))}"
     duplicate_output_filename = f"{outfile_prefix}_raw_{outfile_suffix}.csv"
@@ -97,8 +96,8 @@ def main():
                 if habstar_radial_dist_pc <= hab_max_dist_pc:
                     g_habstar_by_id_map[source_id] = row_dict
                     hab_list_row_count += 1
-                else:
-                    print(f"skip habstar {source_id} dist_pc: {habstar_radial_dist_pc}")
+                # else:
+                #     print(f"skip habstar {source_id} dist_pc: {habstar_radial_dist_pc}")
             else:
                 break
     n_concrete_habitable_stars = hab_list_row_count
